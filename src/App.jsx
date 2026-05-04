@@ -81,10 +81,16 @@ function exportToICS(events,username){
 function Lbl({children}){return<p style={{fontSize:11,fontWeight:600,color:P.gray,marginBottom:4,marginTop:10,letterSpacing:0.3}}>{children}</p>;}
 
 function Modal({onClose,children,title}){
+  useEffect(()=>{
+    const prev=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    return()=>{document.body.style.overflow=prev;};
+  },[]);
   return(
-    <div style={{position:"fixed",inset:0,zIndex:50,display:"flex",alignItems:"flex-end",justifyContent:"center",background:"rgba(61,43,43,0.45)",backdropFilter:"blur(4px)"}}
+    <div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center",background:"rgba(61,43,43,0.6)",backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",padding:"24px 20px 40px",maxHeight:"88vh",overflowY:"auto"}}>
+      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",padding:"24px 20px 40px",maxHeight:"88vh",overflowY:"auto"}}
+        onClick={e=>e.stopPropagation()}>
         {title&&<h3 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:18,marginBottom:12,marginTop:0}}>{title}</h3>}
         {children}
       </div>
@@ -551,6 +557,13 @@ function CalendarView({db,user,users}){
         </div>
       </div>
 
+      {/* WEEK STICKY HEADER - outside scroll */}
+      {view==="week"&&(()=>{
+        const weekDays=getWeekDays();
+        return <WeekHeader weekDays={weekDays} onDayClick={(d)=>openAddForDay(d)}/>;
+      })()}
+      {view==="day"&&<DayHeader date={curDate} onDayClick={openAddForDay}/>}
+
       {/* SCROLLABLE CONTENT */}
       <div style={{flex:1,overflowY:"auto",paddingBottom:100}}>
 
@@ -603,8 +616,7 @@ function CalendarView({db,user,users}){
           const allWE=weekDays.map(d=>expandForMonth(d.getFullYear(),d.getMonth()).filter(ev=>isSameDay(ev.displayDate,d)));
           return(
             <div>
-              <WeekHeader weekDays={weekDays} onDayClick={(d)=>openAddForDay(d)}/>
-              <div style={{display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1,padding:"0 2px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1,padding:"0 2px",marginTop:0}}>
                 {Array.from({length:24},(_,h)=>[
                   <div key={"h"+h} style={{fontSize:9,color:P.gray,paddingTop:2,textAlign:"right",paddingRight:3,height:PX_PER_HOUR}}>{h}:00</div>,
                   ...weekDays.map((d,di)=>{
@@ -633,7 +645,6 @@ function CalendarView({db,user,users}){
           const allDayEvs=dayEvs.filter(ev=>!ev.timeFrom);
           return(
             <div>
-              <DayHeader date={curDate} onDayClick={openAddForDay}/>
               <div style={{padding:"0 12px"}}>
                 {allDayEvs.length>0&&allDayEvs.map((ev,i)=>(
                   <div key={"a"+i} onClick={()=>ev.owner===user.name&&setEditEv({...ev})}
