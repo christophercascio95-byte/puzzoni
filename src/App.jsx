@@ -27,40 +27,141 @@ const CAL_COLORS = [
 ];
 
 const MONTHS = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const MONTHS_SHORT = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
 const DAYS_SHORT = ["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
 const REC_LABELS = { none: "Una volta", daily: "Ogni giorno", weekly: "Ogni settimana", monthly: "Ogni mese" };
-const PX_PER_HOUR = 60;
+const PX_PER_HOUR = 64;
 
 function fmtDate(d) { if (!d) return ""; return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }); }
 function fmtTime(d) { if (!d) return ""; return new Date(d).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); }
 function isSameDay(a, b) { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
 function timeToMin(t) { if (!t) return null; const [h,m]=t.split(":").map(Number); return h*60+(m||0); }
-
-function Label({ children }) {
-  return <p style={{ fontSize:11, fontWeight:600, color:P.gray, marginBottom:4, marginTop:8 }}>{children}</p>;
+function parseItalianDate(s) {
+  // accepts DD/MM/YYYY or YYYY-MM-DD
+  if (!s) return null;
+  if (s.includes("/")) { const [d,m,y]=s.split("/"); return new Date(+y,+m-1,+d); }
+  return new Date(s);
+}
+function formatItalianDate(d) {
+  if (!d) return "";
+  const dt = d instanceof Date ? d : new Date(d);
+  if (isNaN(dt)) return "";
+  return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")}/${dt.getFullYear()}`;
 }
 
-function Inp({ label, color=P.mint, colorLight, ...props }) {
-  const bg = colorLight || P.mintLight;
+// ── LABEL ──────────────────────────────────────────────────────────────────
+function Lbl({ children }) {
+  return <p style={{ fontSize:11, fontWeight:600, color:P.gray, marginBottom:4, marginTop:10, letterSpacing:0.3 }}>{children}</p>;
+}
+
+// ── TEXT INPUT ──────────────────────────────────────────────────────────────
+function TxtInp({ label, color=P.mint, colorLight, ...props }) {
   return (
-    <div>
-      {label && <Label>{label}</Label>}
-      <input {...props} style={{ width:"100%", border:`1.5px solid ${color}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:bg, color:P.dark, boxSizing:"border-box", ...props.style }} />
+    <div style={{ marginBottom:2 }}>
+      {label && <Lbl>{label}</Lbl>}
+      <input {...props} style={{ width:"100%", border:`1.5px solid ${color}`, borderRadius:12, padding:"10px 12px", fontSize:15, outline:"none", background:colorLight||P.mintLight, color:P.dark, boxSizing:"border-box", WebkitAppearance:"none", ...props.style }} />
     </div>
   );
 }
 
+// ── DATE PICKER (custom wheel-style for iOS) ────────────────────────────────
+// Simple text input: user types DD/MM/YYYY
+function DateInp({ label, value, onChange, color=P.mint, colorLight }) {
+  return (
+    <div style={{ marginBottom:2 }}>
+      {label && <Lbl>{label}</Lbl>}
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder="GG/MM/AAAA"
+        value={value}
+        onChange={e => {
+          let v = e.target.value.replace(/[^\d/]/g,"");
+          // auto-insert slashes
+          if (v.length===2 && !v.includes("/")) v += "/";
+          if (v.length===5 && v.split("/").length===2) v += "/";
+          if (v.length > 10) v = v.slice(0,10);
+          onChange(v);
+        }}
+        style={{ width:"100%", border:`1.5px solid ${color}`, borderRadius:12, padding:"10px 12px", fontSize:15, outline:"none", background:colorLight||P.mintLight, color:P.dark, boxSizing:"border-box", WebkitAppearance:"none" }}
+      />
+    </div>
+  );
+}
+
+// ── TIME INPUT ──────────────────────────────────────────────────────────────
+function TimeInp({ label, value, onChange, color=P.mint, colorLight }) {
+  return (
+    <div style={{ flex:1 }}>
+      {label && <p style={{ fontSize:11, color:P.gray, margin:"0 0 4px", fontWeight:600 }}>{label}</p>}
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder="HH:MM"
+        value={value}
+        onChange={e => {
+          let v = e.target.value.replace(/[^\d:]/g,"");
+          if (v.length===2 && !v.includes(":")) v += ":";
+          if (v.length > 5) v = v.slice(0,5);
+          onChange(v);
+        }}
+        style={{ width:"100%", border:`1.5px solid ${color}`, borderRadius:12, padding:"10px 12px", fontSize:15, outline:"none", background:colorLight||P.mintLight, color:P.dark, boxSizing:"border-box", WebkitAppearance:"none" }}
+      />
+    </div>
+  );
+}
+
+// ── TIME ROW ────────────────────────────────────────────────────────────────
+function TimeRow({ label, from, to, onFrom, onTo, color=P.mint, colorLight }) {
+  return (
+    <div>
+      {label && <Lbl>{label}</Lbl>}
+      <div style={{ display:"flex", gap:10 }}>
+        <TimeInp label="Orario Da" value={from} onChange={onFrom} color={color} colorLight={colorLight} />
+        <TimeInp label="Orario A" value={to} onChange={onTo} color={color} colorLight={colorLight} />
+      </div>
+    </div>
+  );
+}
+
+// ── MODAL ───────────────────────────────────────────────────────────────────
 function Modal({ onClose, children, title }) {
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", padding:16, background:"rgba(61,43,43,0.45)", backdropFilter:"blur(4px)" }}>
-      <div style={{ width:"100%", maxWidth:430, background:P.cream, borderRadius:28, padding:24, maxHeight:"88vh", overflowY:"auto" }}>
-        {title && <h3 style={{ fontFamily:"'Playfair Display',serif", color:P.dark, fontSize:18, marginBottom:16, marginTop:0 }}>{title}</h3>}
+    <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", padding:"0 0 0 0", background:"rgba(61,43,43,0.45)", backdropFilter:"blur(4px)" }}
+      onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
+      <div style={{ width:"100%", maxWidth:430, background:P.cream, borderRadius:"28px 28px 0 0", padding:"24px 20px 40px", maxHeight:"90vh", overflowY:"auto" }}>
+        {title && <h3 style={{ fontFamily:"'Playfair Display',serif", color:P.dark, fontSize:18, marginBottom:12, marginTop:0 }}>{title}</h3>}
         {children}
       </div>
     </div>
   );
 }
 
+// ── BUTTONS ─────────────────────────────────────────────────────────────────
+function BtnRow({ onCancel, onSave, onDelete }) {
+  return (
+    <div style={{ display:"flex", gap:8, marginTop:20 }}>
+      {onDelete && <button onClick={onDelete} style={{ padding:"12px 14px", borderRadius:20, border:"none", background:"#FFE8E8", color:"#C0392B", cursor:"pointer", fontSize:13, fontWeight:600 }}>🗑</button>}
+      <button onClick={onCancel} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.mintLight, color:P.gray, cursor:"pointer", fontSize:14 }}>Annulla</button>
+      <button onClick={onSave} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, color:"#fff", cursor:"pointer", fontWeight:600, fontSize:14 }}>Salva ✨</button>
+    </div>
+  );
+}
+
+function RecRow({ value, onChange, color=P.mint, colorLight }) {
+  return (
+    <div>
+      <Lbl>Ricorrenza</Lbl>
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {["none","daily","weekly","monthly"].map(r=>(
+          <button key={r} onClick={()=>onChange(r)} style={{ padding:"6px 12px", borderRadius:20, fontSize:12, fontWeight:500, border:"none", cursor:"pointer", background:value===r?color:colorLight||P.mintLight, color:value===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ONBOARDING ───────────────────────────────────────────────────────────────
 function Onboarding({ onComplete }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState(CAL_COLORS[0].value);
@@ -70,11 +171,11 @@ function Onboarding({ onComplete }) {
       <h1 style={{ fontFamily:"'Playfair Display',serif", color:P.dark, fontSize:28, fontWeight:700, marginBottom:6, textAlign:"center" }}>Benvenuto/a!</h1>
       <p style={{ color:P.gray, fontSize:14, marginBottom:28, textAlign:"center" }}>Come ti chiami? Scegli il colore del tuo calendario.</p>
       <input value={name} onChange={e=>setName(e.target.value)} placeholder="Il tuo nome..."
-        style={{ width:"100%", maxWidth:320, border:`1.5px solid ${P.rose}`, borderRadius:16, padding:"12px 16px", fontSize:15, outline:"none", background:P.roseLight, color:P.dark, marginBottom:24, boxSizing:"border-box" }} />
+        style={{ width:"100%", maxWidth:320, border:`1.5px solid ${P.rose}`, borderRadius:16, padding:"12px 16px", fontSize:15, outline:"none", background:P.roseLight, color:P.dark, marginBottom:24, boxSizing:"border-box", WebkitAppearance:"none" }} />
       <div style={{ display:"flex", gap:12, marginBottom:32, flexWrap:"wrap", justifyContent:"center" }}>
-        {CAL_COLORS.map(c => (
+        {CAL_COLORS.map(c=>(
           <button key={c.value} onClick={()=>setColor(c.value)} title={c.name}
-            style={{ width:42, height:42, borderRadius:"50%", background:c.value, border:color===c.value?`3px solid ${P.dark}`:"3px solid transparent", cursor:"pointer" }} />
+            style={{ width:44, height:44, borderRadius:"50%", background:c.value, border:color===c.value?`3px solid ${P.dark}`:"3px solid transparent", cursor:"pointer" }} />
         ))}
       </div>
       <button onClick={()=>{ if(name.trim()) onComplete(name.trim(),color); }}
@@ -85,6 +186,7 @@ function Onboarding({ onComplete }) {
   );
 }
 
+// ── SHOPPING ─────────────────────────────────────────────────────────────────
 function ShoppingList({ db }) {
   const [items, setItems] = useState([]);
   const [saved, setSaved] = useState([]);
@@ -97,8 +199,8 @@ function ShoppingList({ db }) {
 
   useEffect(() => {
     if (!db) return;
-    const u1 = onValue(ref(db,"shopping"), snap => { const d=snap.val()||{}; setItems(Object.entries(d).map(([id,v])=>({id,...v}))); });
-    const u2 = onValue(ref(db,"shoppingArticles"), snap => { const d=snap.val()||{}; setSaved(Object.entries(d).map(([id,v])=>({id,...v})).sort((a,b)=>(b.count||0)-(a.count||0))); });
+    const u1=onValue(ref(db,"shopping"),snap=>{ const d=snap.val()||{}; setItems(Object.entries(d).map(([id,v])=>({id,...v}))); });
+    const u2=onValue(ref(db,"shoppingArticles"),snap=>{ const d=snap.val()||{}; setSaved(Object.entries(d).map(([id,v])=>({id,...v})).sort((a,b)=>(b.count||0)-(a.count||0))); });
     return ()=>{ u1(); u2(); };
   }, [db]);
 
@@ -107,122 +209,104 @@ function ShoppingList({ db }) {
     setSugg(saved.filter(a=>a.name.toLowerCase().includes(text.toLowerCase())&&a.name.toLowerCase()!==text.toLowerCase()));
   }, [text, saved]);
 
-  const addItem = () => {
+  const addItem=()=>{
     if (!text.trim()||!db) return;
-    push(ref(db,"shopping"),{ text:text.trim(), qty:qty||null, recurrence:rec, checked:false, createdAt:Date.now() });
-    const ex = saved.find(a=>a.name.toLowerCase()===text.trim().toLowerCase());
+    push(ref(db,"shopping"),{ text:text.trim(),qty:qty||null,recurrence:rec,checked:false,createdAt:Date.now() });
+    const ex=saved.find(a=>a.name.toLowerCase()===text.trim().toLowerCase());
     if (ex) update(ref(db,`shoppingArticles/${ex.id}`),{ count:(ex.count||0)+1 });
-    else push(ref(db,"shoppingArticles"),{ name:text.trim(), count:1 });
+    else push(ref(db,"shoppingArticles"),{ name:text.trim(),count:1 });
     setText(""); setQty(""); setRec("none"); setSugg([]);
   };
 
-  const toggleItem = (item) => {
-    if (!db) return;
-    update(ref(db,`shopping/${item.id}`),{ checked:!item.checked, ...(!item.checked&&item.recurrence!=="none"?{lastCompleted:Date.now()}:{}) });
-  };
+  const toggleItem=(item)=>{ if(!db) return; update(ref(db,`shopping/${item.id}`),{ checked:!item.checked,...(!item.checked&&item.recurrence!=="none"?{lastCompleted:Date.now()}:{}) }); };
+  const saveEdit=()=>{ if(!editing||!db) return; update(ref(db,`shopping/${editing.id}`),{ text:editing.text,qty:editing.qty||null,recurrence:editing.recurrence||"none" }); setEditing(null); };
+  const deleteItem=(id)=>{ remove(ref(db,`shopping/${id}`)); if(editing?.id===id) setEditing(null); };
+  const deleteSaved=(id)=>remove(ref(db,`shoppingArticles/${id}`));
+  const unchecked=items.filter(i=>!i.checked);
+  const checked=items.filter(i=>i.checked);
 
-  const saveEdit = () => {
-    if (!editing||!db) return;
-    update(ref(db,`shopping/${editing.id}`),{ text:editing.text, qty:editing.qty||null, recurrence:editing.recurrence||"none" });
-    setEditing(null);
-  };
-
-  const deleteItem = (id) => { remove(ref(db,`shopping/${id}`)); if(editing?.id===id) setEditing(null); };
-  const deleteSaved = (id) => remove(ref(db,`shoppingArticles/${id}`));
-  const unchecked = items.filter(i=>!i.checked);
-  const checked = items.filter(i=>i.checked);
-
-  const Row = ({ item }) => (
+  const Row=({ item })=>(
     <div style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:16, padding:"11px 14px", border:`1.5px solid ${P.roseLight}`, opacity:item.checked?0.65:1, marginBottom:8 }}>
-      <button onClick={()=>toggleItem(item)} style={{ width:24, height:24, borderRadius:"50%", border:`2px solid ${P.rose}`, background:item.checked?P.rose:"none", cursor:"pointer", flexShrink:0, color:"#fff", fontSize:12 }}>
-        {item.checked?"✓":""}
-      </button>
+      <button onClick={()=>toggleItem(item)} style={{ width:26, height:26, borderRadius:"50%", border:`2px solid ${P.rose}`, background:item.checked?P.rose:"none", cursor:"pointer", flexShrink:0, color:"#fff", fontSize:13 }}>{item.checked?"✓":""}</button>
       <div style={{ flex:1, minWidth:0 }}>
         <p style={{ fontSize:14, fontWeight:500, color:P.dark, margin:0, textDecoration:item.checked?"line-through":"none" }}>{item.text}</p>
         <div style={{ display:"flex", gap:8 }}>
-          {item.qty && <span style={{ fontSize:11, color:P.gray }}>{item.qty}</span>}
-          {item.recurrence&&item.recurrence!=="none" && <span style={{ fontSize:11, color:P.roseDark }}>🔁 {REC_LABELS[item.recurrence]}</span>}
+          {item.qty&&<span style={{ fontSize:11,color:P.gray }}>{item.qty}</span>}
+          {item.recurrence&&item.recurrence!=="none"&&<span style={{ fontSize:11,color:P.roseDark }}>🔁 {REC_LABELS[item.recurrence]}</span>}
         </div>
       </div>
-      <button onClick={()=>setEditing({...item})} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>✏️</button>
-      <button onClick={()=>deleteItem(item.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>🗑</button>
+      <button onClick={()=>setEditing({...item})} style={{ border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 4px" }}>✏️</button>
+      <button onClick={()=>deleteItem(item.id)} style={{ border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 4px" }}>🗑</button>
     </div>
   );
 
   return (
-    <div style={{ flex:1, overflowY:"auto", paddingBottom:100 }}>
+    <div style={{ flex:1,overflowY:"auto",paddingBottom:100 }}>
       <div style={{ padding:"16px 16px 0" }}>
-        <div style={{ background:"#fff", borderRadius:20, padding:16, border:`1.5px solid ${P.roseLight}`, marginBottom:12 }}>
-          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+        <div style={{ background:"#fff",borderRadius:20,padding:16,border:`1.5px solid ${P.roseLight}`,marginBottom:12 }}>
+          <div style={{ display:"flex",gap:8,marginBottom:8 }}>
             <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()}
-              placeholder="Nome prodotto..." style={{ flex:1, border:`1.5px solid ${P.rose}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.roseLight, color:P.dark }} />
+              placeholder="Nome prodotto..." style={{ flex:1,border:`1.5px solid ${P.rose}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.roseLight,color:P.dark,WebkitAppearance:"none" }} />
             <input value={qty} onChange={e=>setQty(e.target.value)} placeholder="Qtà"
-              style={{ width:64, border:`1.5px solid ${P.peach}`, borderRadius:12, padding:"8px 8px", fontSize:14, outline:"none", background:P.peachLight, color:P.dark }} />
+              style={{ width:64,border:`1.5px solid ${P.peach}`,borderRadius:12,padding:"10px 8px",fontSize:15,outline:"none",background:P.peachLight,color:P.dark,WebkitAppearance:"none" }} />
           </div>
-          {sugg.length > 0 && (
-            <div style={{ background:P.roseLight, borderRadius:12, marginBottom:8 }}>
+          {sugg.length>0&&(
+            <div style={{ background:P.roseLight,borderRadius:12,marginBottom:8 }}>
               {sugg.slice(0,4).map(s=>(
                 <button key={s.id} onClick={()=>{ setText(s.name); setSugg([]); inputRef.current?.focus(); }}
-                  style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 12px", background:"none", border:"none", cursor:"pointer", fontSize:13, color:P.dark }}>
-                  🔍 {s.name} <span style={{ color:P.gray, fontSize:11 }}>({s.count}x)</span>
+                  style={{ display:"block",width:"100%",textAlign:"left",padding:"8px 12px",background:"none",border:"none",cursor:"pointer",fontSize:13,color:P.dark }}>
+                  🔍 {s.name} <span style={{ color:P.gray,fontSize:11 }}>({s.count}x)</span>
                 </button>
               ))}
             </div>
           )}
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+          <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
             {["none","daily","weekly","monthly"].map(r=>(
-              <button key={r} onClick={()=>setRec(r)} style={{ padding:"4px 10px", borderRadius:20, fontSize:11, fontWeight:500, border:"none", cursor:"pointer", background:rec===r?P.rose:P.roseLight, color:rec===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
+              <button key={r} onClick={()=>setRec(r)} style={{ padding:"5px 10px",borderRadius:20,fontSize:11,fontWeight:500,border:"none",cursor:"pointer",background:rec===r?P.rose:P.roseLight,color:rec===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
             ))}
-            <button onClick={addItem} style={{ marginLeft:"auto", padding:"5px 18px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:`linear-gradient(135deg,${P.rose},${P.roseDark})`, color:"#fff" }}>+ Aggiungi</button>
+            <button onClick={addItem} style={{ marginLeft:"auto",padding:"6px 18px",borderRadius:20,fontSize:13,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.rose},${P.roseDark})`,color:"#fff" }}>+ Aggiungi</button>
           </div>
         </div>
-        {saved.length > 0 && (
+        {saved.length>0&&(
           <div style={{ marginBottom:12 }}>
-            <p style={{ fontSize:11, fontWeight:600, color:P.gray, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Articoli frequenti</p>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            <p style={{ fontSize:11,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,marginBottom:6 }}>Articoli frequenti</p>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
               {saved.slice(0,8).map(a=>(
-                <div key={a.id} style={{ display:"flex", alignItems:"center", gap:4, background:P.roseLight, borderRadius:20, padding:"4px 10px" }}>
-                  <button onClick={()=>{ setText(a.name); inputRef.current?.focus(); }} style={{ border:"none", background:"none", cursor:"pointer", fontSize:12, color:P.dark }}>{a.name}</button>
-                  <button onClick={()=>deleteSaved(a.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:10, color:P.rose }}>✕</button>
+                <div key={a.id} style={{ display:"flex",alignItems:"center",gap:4,background:P.roseLight,borderRadius:20,padding:"4px 10px" }}>
+                  <button onClick={()=>{ setText(a.name); inputRef.current?.focus(); }} style={{ border:"none",background:"none",cursor:"pointer",fontSize:12,color:P.dark }}>{a.name}</button>
+                  <button onClick={()=>deleteSaved(a.id)} style={{ border:"none",background:"none",cursor:"pointer",fontSize:10,color:P.rose }}>✕</button>
                 </div>
               ))}
             </div>
           </div>
         )}
-        {unchecked.length===0&&checked.length===0 && (
-          <div style={{ textAlign:"center", padding:"40px 0", color:P.gray }}>
-            <div style={{ fontSize:48, marginBottom:8 }}>🛒</div>
+        {unchecked.length===0&&checked.length===0&&(
+          <div style={{ textAlign:"center",padding:"40px 0",color:P.gray }}>
+            <div style={{ fontSize:48,marginBottom:8 }}>🛒</div>
             <p style={{ fontSize:14 }}>La lista è vuota!<br/>Aggiungi il primo prodotto ✨</p>
           </div>
         )}
         {unchecked.map(item=><Row key={item.id} item={item} />)}
-        {checked.length>0 && (
+        {checked.length>0&&(
           <>
-            <p style={{ fontSize:11, fontWeight:600, color:P.gray, textTransform:"uppercase", letterSpacing:1, margin:"12px 0 6px" }}>Nel carrello ✓</p>
+            <p style={{ fontSize:11,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,margin:"12px 0 6px" }}>Nel carrello ✓</p>
             {checked.map(item=><Row key={item.id} item={item} />)}
           </>
         )}
       </div>
-      {editing && (
+      {editing&&(
         <Modal title="✏️ Modifica prodotto" onClose={()=>setEditing(null)}>
-          <Inp label="Nome prodotto" color={P.rose} colorLight={P.roseLight} value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} />
-          <Inp label="Quantità (es. 2 kg, 1 bottiglia...)" color={P.peach} colorLight={P.peachLight} value={editing.qty||""} onChange={e=>setEditing(p=>({...p,qty:e.target.value}))} style={{ marginTop:4 }} />
-          <Label>Ricorrenza</Label>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
-            {["none","daily","weekly","monthly"].map(r=>(
-              <button key={r} onClick={()=>setEditing(p=>({...p,recurrence:r}))} style={{ padding:"5px 12px", borderRadius:20, fontSize:12, border:"none", cursor:"pointer", background:(editing.recurrence||"none")===r?P.rose:P.roseLight, color:(editing.recurrence||"none")===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
-            ))}
-          </div>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.roseLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
-            <button onClick={saveEdit} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.rose},${P.roseDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
-          </div>
+          <TxtInp label="Nome prodotto" color={P.rose} colorLight={P.roseLight} value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} />
+          <TxtInp label="Quantità (es. 2 kg, 1 bottiglia...)" color={P.peach} colorLight={P.peachLight} value={editing.qty||""} onChange={e=>setEditing(p=>({...p,qty:e.target.value}))} />
+          <RecRow value={editing.recurrence||"none"} onChange={v=>setEditing(p=>({...p,recurrence:v}))} color={P.rose} colorLight={P.roseLight} />
+          <BtnRow onCancel={()=>setEditing(null)} onSave={saveEdit} onDelete={()=>{ deleteItem(editing.id); }} />
         </Modal>
       )}
     </div>
   );
 }
 
+// ── TODO ─────────────────────────────────────────────────────────────────────
 function TodoList({ db, user }) {
   const [items, setItems] = useState([]);
   const [text, setText] = useState("");
@@ -233,109 +317,91 @@ function TodoList({ db, user }) {
 
   useEffect(() => {
     if (!db) return;
-    return onValue(ref(db,"todos"), snap => { const d=snap.val()||{}; setItems(Object.entries(d).map(([id,v])=>({id,...v})).sort((a,b)=>b.createdAt-a.createdAt)); });
+    return onValue(ref(db,"todos"),snap=>{ const d=snap.val()||{}; setItems(Object.entries(d).map(([id,v])=>({id,...v})).sort((a,b)=>b.createdAt-a.createdAt)); });
   }, [db]);
 
-  const addItem = () => {
+  const addItem=()=>{
     if (!text.trim()||!db) return;
-    push(ref(db,"todos"),{ text:text.trim(), date:date||null, recurrence:rec, done:false, createdAt:Date.now(), createdBy:user.name });
+    let isoDate=null;
+    if (date&&date.length===10) { const dt=parseItalianDate(date); if(dt&&!isNaN(dt)) isoDate=dt.toISOString().split("T")[0]; }
+    push(ref(db,"todos"),{ text:text.trim(),date:isoDate,recurrence:rec,done:false,createdAt:Date.now(),createdBy:user.name });
     setText(""); setDate(""); setRec("none");
   };
 
-  const toggleItem = (item) => {
-    if (!db) return;
-    update(ref(db,`todos/${item.id}`),{ done:!item.done, ...(!item.done?{completedBy:user.name,completedAt:Date.now()}:{completedBy:null,completedAt:null}) });
-  };
-
-  const saveEdit = () => {
-    if (!editing||!db) return;
-    update(ref(db,`todos/${editing.id}`),{ text:editing.text, date:editing.date||null, recurrence:editing.recurrence||"none" });
+  const toggleItem=(item)=>{ if(!db) return; update(ref(db,`todos/${item.id}`),{ done:!item.done,...(!item.done?{completedBy:user.name,completedAt:Date.now()}:{completedBy:null,completedAt:null}) }); };
+  const saveEdit=()=>{
+    if(!editing||!db) return;
+    let isoDate=editing.date;
+    if (editing.date&&editing.date.includes("/")) { const dt=parseItalianDate(editing.date); if(dt&&!isNaN(dt)) isoDate=dt.toISOString().split("T")[0]; }
+    update(ref(db,`todos/${editing.id}`),{ text:editing.text,date:isoDate||null,recurrence:editing.recurrence||"none" });
     setEditing(null);
   };
-
-  const deleteItem = (id) => { remove(ref(db,`todos/${id}`)); if(editing?.id===id) setEditing(null); };
-  const filtered = items.filter(i=>filter==="open"?!i.done:i.done);
+  const deleteItem=(id)=>{ remove(ref(db,`todos/${id}`)); if(editing?.id===id) setEditing(null); };
+  const filtered=items.filter(i=>filter==="open"?!i.done:i.done);
 
   return (
-    <div style={{ flex:1, overflowY:"auto", paddingBottom:100 }}>
+    <div style={{ flex:1,overflowY:"auto",paddingBottom:100 }}>
       <div style={{ padding:"16px 16px 0" }}>
-        <div style={{ background:"#fff", borderRadius:20, padding:16, border:`1.5px solid ${P.lavLight}`, marginBottom:12 }}>
+        <div style={{ background:"#fff",borderRadius:20,padding:16,border:`1.5px solid ${P.lavLight}`,marginBottom:12 }}>
           <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()}
-            placeholder="Nome attività..." style={{ width:"100%", border:`1.5px solid ${P.lav}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.lavLight, color:P.dark, boxSizing:"border-box", marginBottom:8 }} />
-          <div style={{ marginBottom:8 }}>
-            <Label>Data scadenza (opzionale)</Label>
-            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
-              style={{ width:"100%", border:`1.5px solid ${P.lav}`, borderRadius:12, padding:"7px 12px", fontSize:14, outline:"none", background:P.lavLight, color:P.dark, boxSizing:"border-box" }} />
-          </div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-            {["none","daily","weekly","monthly"].map(r=>(
-              <button key={r} onClick={()=>setRec(r)} style={{ padding:"4px 10px", borderRadius:20, fontSize:11, fontWeight:500, border:"none", cursor:"pointer", background:rec===r?P.lav:P.lavLight, color:rec===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
-            ))}
-            <button onClick={addItem} style={{ marginLeft:"auto", padding:"5px 18px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:`linear-gradient(135deg,${P.lav},${P.lavDark})`, color:"#fff" }}>+ Aggiungi</button>
-          </div>
+            placeholder="Nome attività..." style={{ width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box",marginBottom:8,WebkitAppearance:"none" }} />
+          <DateInp label="Data scadenza (opzionale, es. 25/12/2026)" value={date} onChange={setDate} color={P.lav} colorLight={P.lavLight} />
+          <RecRow value={rec} onChange={setRec} color={P.lav} colorLight={P.lavLight} />
+          <button onClick={addItem} style={{ marginTop:10,width:"100%",padding:"10px 0",borderRadius:20,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.lav},${P.lavDark})`,color:"#fff" }}>+ Aggiungi attività</button>
         </div>
-        <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        <div style={{ display:"flex",gap:8,marginBottom:12 }}>
           {["open","done"].map(f=>(
-            <button key={f} onClick={()=>setFilter(f)} style={{ flex:1, padding:"8px 0", borderRadius:12, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:filter===f?P.lav:P.lavLight, color:filter===f?"#fff":P.gray }}>
+            <button key={f} onClick={()=>setFilter(f)} style={{ flex:1,padding:"8px 0",borderRadius:12,fontSize:13,fontWeight:600,border:"none",cursor:"pointer",background:filter===f?P.lav:P.lavLight,color:filter===f?"#fff":P.gray }}>
               {f==="open"?`📋 Aperte (${items.filter(i=>!i.done).length})`:`✅ Chiuse (${items.filter(i=>i.done).length})`}
             </button>
           ))}
         </div>
-        {filtered.length===0 && (
-          <div style={{ textAlign:"center", padding:"40px 0", color:P.gray }}>
-            <div style={{ fontSize:48, marginBottom:8 }}>{filter==="open"?"✅":"📋"}</div>
+        {filtered.length===0&&(
+          <div style={{ textAlign:"center",padding:"40px 0",color:P.gray }}>
+            <div style={{ fontSize:48,marginBottom:8 }}>{filter==="open"?"✅":"📋"}</div>
             <p style={{ fontSize:14 }}>Nessuna attività {filter==="open"?"aperta":"chiusa"}!</p>
           </div>
         )}
         {filtered.map(item=>(
-          <div key={item.id} style={{ background:"#fff", borderRadius:16, padding:"12px 14px", marginBottom:8, border:`1.5px solid ${P.lavLight}`, opacity:item.done?0.75:1 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <button onClick={()=>toggleItem(item)} style={{ width:24, height:24, borderRadius:"50%", border:`2px solid ${P.lav}`, background:item.done?P.lav:"none", cursor:"pointer", flexShrink:0, color:"#fff", fontSize:12 }}>{item.done?"✓":""}</button>
-              <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ fontSize:14, fontWeight:500, color:P.dark, margin:0, textDecoration:item.done?"line-through":"none" }}>{item.text}</p>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:2 }}>
-                  <span style={{ fontSize:11, color:P.gray }}>Aggiunta {fmtDate(item.createdAt)} da {item.createdBy||"?"}</span>
-                  {item.date && <span style={{ fontSize:11, color:P.lavDark }}>📅 {fmtDate(item.date+"T00:00:00")}</span>}
-                  {item.recurrence&&item.recurrence!=="none" && <span style={{ fontSize:11, color:P.lavDark }}>🔁 {REC_LABELS[item.recurrence]}</span>}
+          <div key={item.id} style={{ background:"#fff",borderRadius:16,padding:"12px 14px",marginBottom:8,border:`1.5px solid ${P.lavLight}`,opacity:item.done?0.75:1 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+              <button onClick={()=>toggleItem(item)} style={{ width:26,height:26,borderRadius:"50%",border:`2px solid ${P.lav}`,background:item.done?P.lav:"none",cursor:"pointer",flexShrink:0,color:"#fff",fontSize:13 }}>{item.done?"✓":""}</button>
+              <div style={{ flex:1,minWidth:0 }}>
+                <p style={{ fontSize:14,fontWeight:500,color:P.dark,margin:0,textDecoration:item.done?"line-through":"none" }}>{item.text}</p>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginTop:2 }}>
+                  <span style={{ fontSize:11,color:P.gray }}>Aggiunta {fmtDate(item.createdAt)} · {item.createdBy||"?"}</span>
+                  {item.date&&<span style={{ fontSize:11,color:P.lavDark }}>📅 {fmtDate(item.date+"T12:00:00")}</span>}
+                  {item.recurrence&&item.recurrence!=="none"&&<span style={{ fontSize:11,color:P.lavDark }}>🔁 {REC_LABELS[item.recurrence]}</span>}
                 </div>
-                {item.done&&item.completedBy && (
-                  <p style={{ fontSize:11, color:P.lavDark, margin:"2px 0 0" }}>✅ Completata da <strong>{item.completedBy}</strong> il {fmtDate(item.completedAt)} alle {fmtTime(item.completedAt)}</p>
+                {item.done&&item.completedBy&&(
+                  <p style={{ fontSize:11,color:P.lavDark,margin:"2px 0 0" }}>✅ {item.completedBy} · {fmtDate(item.completedAt)} {fmtTime(item.completedAt)}</p>
                 )}
               </div>
-              <button onClick={()=>setEditing({...item})} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>✏️</button>
-              <button onClick={()=>deleteItem(item.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>🗑</button>
+              <button onClick={()=>setEditing({...item,date:item.date?formatItalianDate(new Date(item.date+"T12:00:00")):""})} style={{ border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 4px" }}>✏️</button>
+              <button onClick={()=>deleteItem(item.id)} style={{ border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 4px" }}>🗑</button>
             </div>
           </div>
         ))}
       </div>
-      {editing && (
+      {editing&&(
         <Modal title="✏️ Modifica attività" onClose={()=>setEditing(null)}>
-          <Inp label="Nome attività" color={P.lav} colorLight={P.lavLight} value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} />
-          <Label>Data scadenza</Label>
-          <input type="date" value={editing.date||""} onChange={e=>setEditing(p=>({...p,date:e.target.value}))}
-            style={{ width:"100%", border:`1.5px solid ${P.lav}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.lavLight, color:P.dark, boxSizing:"border-box" }} />
-          <Label>Ricorrenza</Label>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
-            {["none","daily","weekly","monthly"].map(r=>(
-              <button key={r} onClick={()=>setEditing(p=>({...p,recurrence:r}))} style={{ padding:"5px 12px", borderRadius:20, fontSize:12, border:"none", cursor:"pointer", background:(editing.recurrence||"none")===r?P.lav:P.lavLight, color:(editing.recurrence||"none")===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
-            ))}
-          </div>
-          {editing.done&&editing.completedBy && (
-            <div style={{ background:P.lavLight, borderRadius:12, padding:"10px 14px", marginBottom:16 }}>
-              <p style={{ fontSize:12, color:P.gray, margin:0 }}>✅ Completata da <strong>{editing.completedBy}</strong></p>
-              <p style={{ fontSize:12, color:P.gray, margin:"2px 0 0" }}>🕐 {fmtDate(editing.completedAt)} alle {fmtTime(editing.completedAt)}</p>
+          <TxtInp label="Nome attività" color={P.lav} colorLight={P.lavLight} value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} />
+          <DateInp label="Data scadenza (es. 25/12/2026)" value={editing.date||""} onChange={v=>setEditing(p=>({...p,date:v}))} color={P.lav} colorLight={P.lavLight} />
+          <RecRow value={editing.recurrence||"none"} onChange={v=>setEditing(p=>({...p,recurrence:v}))} color={P.lav} colorLight={P.lavLight} />
+          {editing.done&&editing.completedBy&&(
+            <div style={{ background:P.lavLight,borderRadius:12,padding:"10px 14px",marginTop:12 }}>
+              <p style={{ fontSize:12,color:P.gray,margin:0 }}>✅ Completata da <strong>{editing.completedBy}</strong></p>
+              <p style={{ fontSize:12,color:P.gray,margin:"2px 0 0" }}>🕐 {fmtDate(editing.completedAt)} · {fmtTime(editing.completedAt)}</p>
             </div>
           )}
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.lavLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
-            <button onClick={saveEdit} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.lav},${P.lavDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
-          </div>
+          <BtnRow onCancel={()=>setEditing(null)} onSave={saveEdit} onDelete={()=>{ deleteItem(editing.id); }} />
         </Modal>
       )}
     </div>
   );
 }
 
+// ── CALENDAR ─────────────────────────────────────────────────────────────────
 function CalendarView({ db, user, users }) {
   const [events, setEvents] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -345,252 +411,227 @@ function CalendarView({ db, user, users }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showTpl, setShowTpl] = useState(false);
   const [selDay, setSelDay] = useState(null);
-  const [editEvent, setEditEvent] = useState(null);
-  const [newEv, setNewEv] = useState({ text:"", date:"", timeFrom:"", timeTo:"", duration:"", recurrence:"none", isShared:true });
-  const [newTpl, setNewTpl] = useState({ name:"", timeFrom:"", timeTo:"", duration:"" });
+  const [editEv, setEditEv] = useState(null);
+  const emptyEv = { text:"",date:"",timeFrom:"",timeTo:"",duration:"",recurrence:"none",isShared:true };
+  const [newEv, setNewEv] = useState({...emptyEv});
+  const [newTpl, setNewTpl] = useState({ name:"",timeFrom:"",timeTo:"",duration:"" });
 
-  useEffect(() => {
-    if (!db) return;
-    const u1 = onValue(ref(db,"calendarEvents"), snap=>{ const d=snap.val()||{}; setEvents(Object.entries(d).map(([id,v])=>({id,...v}))); });
-    const u2 = onValue(ref(db,`templates/${user.name}`), snap=>{ const d=snap.val()||{}; setTemplates(Object.entries(d).map(([id,v])=>({id,...v}))); });
+  useEffect(()=>{
+    if(!db) return;
+    const u1=onValue(ref(db,"calendarEvents"),snap=>{ const d=snap.val()||{}; setEvents(Object.entries(d).map(([id,v])=>({id,...v}))); });
+    const u2=onValue(ref(db,`templates/${user.name}`),snap=>{ const d=snap.val()||{}; setTemplates(Object.entries(d).map(([id,v])=>({id,...v}))); });
     return ()=>{ u1(); u2(); };
-  }, [db, user]);
+  },[db,user]);
 
-  const addEvent = () => {
-    if (!newEv.text.trim()||!newEv.date||!db) return;
-    push(ref(db,"calendarEvents"),{ ...newEv, owner:user.name, ownerColor:user.color, createdAt:Date.now() });
-    setNewEv({ text:"", date:"", timeFrom:"", timeTo:"", duration:"", recurrence:"none", isShared:true });
-    setShowAdd(false);
+  const isoFromItalian=(s)=>{
+    if(!s) return "";
+    if(s.includes("/")){ const [d,m,y]=s.split("/"); return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`; }
+    return s;
   };
 
-  const addTemplate = () => {
-    if (!newTpl.name.trim()||!db) return;
-    push(ref(db,`templates/${user.name}`),{ ...newTpl });
-    setNewTpl({ name:"", timeFrom:"", timeTo:"", duration:"" });
+  const italianFromIso=(s)=>{
+    if(!s) return "";
+    if(s.includes("-")){ const [y,m,d]=s.split("-"); return `${d}/${m}/${y}`; }
+    return s;
   };
 
-  const deleteEvent = (id) => { remove(ref(db,`calendarEvents/${id}`)); if(editEvent?.id===id) setEditEvent(null); };
-  const deleteTemplate = (id) => remove(ref(db,`templates/${user.name}/${id}`));
-  const applyTemplate = (t) => { setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||""})); setShowAdd(true); };
-  const getUserColor = (ownerName) => { const u=Object.values(users||{}).find(u=>u.name===ownerName); return u?.color||P.mint; };
+  const addEvent=()=>{
+    if(!newEv.text.trim()||!newEv.date||!db) return;
+    const isoDate=isoFromItalian(newEv.date);
+    push(ref(db,"calendarEvents"),{ ...newEv,date:isoDate,owner:user.name,ownerColor:user.color,createdAt:Date.now() });
+    setNewEv({...emptyEv}); setShowAdd(false);
+  };
 
-  const visibleEvents = events.filter(ev=>calFilter==="mine"?ev.owner===user.name:(ev.isShared||ev.owner===user.name));
+  const saveEditEv=()=>{
+    if(!editEv||!db) return;
+    const isoDate=isoFromItalian(editEv.date);
+    update(ref(db,`calendarEvents/${editEv.id}`),{ text:editEv.text,date:isoDate,timeFrom:editEv.timeFrom,timeTo:editEv.timeTo,duration:editEv.duration,recurrence:editEv.recurrence,isShared:editEv.isShared });
+    setEditEv(null);
+  };
 
-  const expandForMonth = (year, month) => {
-    const result=[]; const dim=new Date(year,month+1,0).getDate();
+  const addTemplate=()=>{
+    if(!newTpl.name.trim()||!db) return;
+    push(ref(db,`templates/${user.name}`),{...newTpl});
+    setNewTpl({ name:"",timeFrom:"",timeTo:"",duration:"" });
+  };
+
+  const deleteEvent=(id)=>{ remove(ref(db,`calendarEvents/${id}`)); if(editEv?.id===id) setEditEv(null); };
+  const deleteTemplate=(id)=>remove(ref(db,`templates/${user.name}/${id}`));
+  const applyTemplate=(t)=>{ setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||""})); setShowAdd(true); setShowTpl(false); };
+  const getUserColor=(ownerName)=>{ const u=Object.values(users||{}).find(u=>u.name===ownerName); return u?.color||P.mint; };
+
+  const visibleEvents=events.filter(ev=>calFilter==="mine"?ev.owner===user.name:(ev.isShared||ev.owner===user.name));
+
+  const expandForMonth=(year,month)=>{
+    const result=[],dim=new Date(year,month+1,0).getDate();
     visibleEvents.forEach(ev=>{
-      if (!ev.date) return;
-      const evDate=new Date(ev.date);
+      if(!ev.date) return;
+      const evDate=new Date(ev.date+"T12:00:00");
       const add=(d)=>result.push({...ev,displayDate:new Date(d)});
-      if (!ev.recurrence||ev.recurrence==="none") { if(evDate.getFullYear()===year&&evDate.getMonth()===month) add(evDate); }
-      else if (ev.recurrence==="monthly") { add(new Date(year,month,evDate.getDate())); }
-      else if (ev.recurrence==="weekly") { for(let d=1;d<=dim;d++){ const dt=new Date(year,month,d); if(dt.getDay()===evDate.getDay()) add(dt); } }
-      else if (ev.recurrence==="daily") { for(let d=1;d<=dim;d++) add(new Date(year,month,d)); }
+      if(!ev.recurrence||ev.recurrence==="none"){ if(evDate.getFullYear()===year&&evDate.getMonth()===month) add(evDate); }
+      else if(ev.recurrence==="monthly"){ add(new Date(year,month,evDate.getDate())); }
+      else if(ev.recurrence==="weekly"){ for(let d=1;d<=dim;d++){ const dt=new Date(year,month,d); if(dt.getDay()===evDate.getDay()) add(dt); } }
+      else if(ev.recurrence==="daily"){ for(let d=1;d<=dim;d++) add(new Date(year,month,d)); }
     });
     return result;
   };
 
-  const year=curDate.getFullYear(), month=curDate.getMonth();
+  const year=curDate.getFullYear(),month=curDate.getMonth();
   const monthEvs=expandForMonth(year,month);
   const getEvForDay=(d)=>monthEvs.filter(ev=>isSameDay(ev.displayDate,d));
   const today=new Date();
-
   const navigate=(dir)=>{ const d=new Date(curDate); if(view==="month") d.setMonth(d.getMonth()+dir); else if(view==="week") d.setDate(d.getDate()+dir*7); else d.setDate(d.getDate()+dir); setCurDate(d); };
   const getWeekDays=()=>{ const d=new Date(curDate); d.setDate(d.getDate()-d.getDay()); return Array.from({length:7},(_,i)=>{ const dd=new Date(d); dd.setDate(d.getDate()+i); return dd; }); };
-  const headerLabel=()=>{ if(view==="month") return `${MONTHS[month]} ${year}`; if(view==="week"){ const w=getWeekDays(); return `${w[0].getDate()} - ${w[6].getDate()} ${MONTHS[w[6].getMonth()]}`; } return `${curDate.getDate()} ${MONTHS[curDate.getMonth()]}`; };
+  const headerLabel=()=>{ if(view==="month") return `${MONTHS[month]} ${year}`; if(view==="week"){ const w=getWeekDays(); return `${w[0].getDate()} - ${w[6].getDate()} ${MONTHS_SHORT[w[6].getMonth()]}`; } return `${curDate.getDate()} ${MONTHS[curDate.getMonth()]}`; };
 
-  const TimeInputRow = ({ label, from, to, onFrom, onTo }) => (
+  const EventCard=({ ev })=>(
+    <div onClick={()=>ev.owner===user.name&&setEditEv({...ev,date:italianFromIso(ev.date)})}
+      style={{ display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${P.mintLight}`,cursor:ev.owner===user.name?"pointer":"default" }}>
+      <div style={{ width:8,height:8,borderRadius:"50%",background:getUserColor(ev.owner),flexShrink:0 }} />
+      <div style={{ flex:1 }}>
+        <p style={{ fontSize:13,fontWeight:500,color:P.dark,margin:0 }}>{ev.text}</p>
+        <p style={{ fontSize:11,color:P.gray,margin:0 }}>{ev.owner}{ev.timeFrom?` · ${ev.timeFrom}${ev.timeTo?` - ${ev.timeTo}`:""}`:""}{ev.duration?` · ⏱ ${ev.duration}`:""}</p>
+      </div>
+      {ev.owner===user.name&&<span style={{ fontSize:14 }}>✏️</span>}
+    </div>
+  );
+
+  const SharedRow=({ label, isShared, onChange })=>(
     <div>
-      <Label>{label}</Label>
-      <div style={{ display:"flex", gap:8 }}>
-        <div style={{ flex:1 }}>
-          <p style={{ fontSize:11, color:P.gray, margin:"0 0 4px" }}>Orario Da</p>
-          <input type="time" value={from} onChange={onFrom} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 10px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
-        </div>
-        <div style={{ flex:1 }}>
-          <p style={{ fontSize:11, color:P.gray, margin:"0 0 4px" }}>Orario A</p>
-          <input type="time" value={to} onChange={onTo} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 10px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
-        </div>
+      <Lbl>{label}</Lbl>
+      <div style={{ display:"flex",gap:8 }}>
+        <button onClick={()=>onChange(true)} style={{ flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:isShared?P.mint:P.mintLight,color:isShared?"#fff":P.gray }}>🌸 Condiviso</button>
+        <button onClick={()=>onChange(false)} style={{ flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!isShared?P.mint:P.mintLight,color:!isShared?"#fff":P.gray }}>👤 Solo mio</button>
       </div>
     </div>
   );
 
-  const EventEditModal = ({ ev, onClose }) => {
-    const [e, setE] = useState({...ev});
-    const save = () => { update(ref(db,`calendarEvents/${e.id}`),{ text:e.text, date:e.date, timeFrom:e.timeFrom, timeTo:e.timeTo, duration:e.duration, recurrence:e.recurrence, isShared:e.isShared }); onClose(); };
-    return (
-      <Modal title="✏️ Modifica evento" onClose={onClose}>
-        <Inp label="Nome evento" value={e.text} onChange={ev2=>setE(p=>({...p,text:ev2.target.value}))} />
-        <Label>Data</Label>
-        <input type="date" value={e.date||""} onChange={ev2=>setE(p=>({...p,date:ev2.target.value}))} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
-        <TimeInputRow label="Orario fisso (lascia vuoto per tutto il giorno)" from={e.timeFrom||""} to={e.timeTo||""} onFrom={ev2=>setE(p=>({...p,timeFrom:ev2.target.value}))} onTo={ev2=>setE(p=>({...p,timeTo:ev2.target.value}))} />
-        <Inp label="Durata (es. 1 ora, 30 min) — alternativa agli orari fissi" value={e.duration||""} onChange={ev2=>setE(p=>({...p,duration:ev2.target.value}))} style={{ marginTop:4 }} />
-        <Label>Ricorrenza</Label>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
-          {["none","daily","weekly","monthly"].map(r=>(
-            <button key={r} onClick={()=>setE(p=>({...p,recurrence:r}))} style={{ padding:"5px 10px", borderRadius:20, fontSize:11, border:"none", cursor:"pointer", background:(e.recurrence||"none")===r?P.mint:P.mintLight, color:(e.recurrence||"none")===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
-          ))}
-        </div>
-        <div style={{ display:"flex", gap:6, marginBottom:16 }}>
-          <button onClick={()=>setE(p=>({...p,isShared:true}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:e.isShared?P.mint:P.mintLight, color:e.isShared?"#fff":P.gray }}>🌸 Condiviso</button>
-          <button onClick={()=>setE(p=>({...p,isShared:false}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:!e.isShared?P.mint:P.mintLight, color:!e.isShared?"#fff":P.gray }}>👤 Solo mio</button>
-        </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={()=>{ deleteEvent(ev.id); onClose(); }} style={{ padding:"10px 14px", borderRadius:20, border:"none", background:"#FFE8E8", color:"#C0392B", cursor:"pointer", fontSize:13 }}>🗑 Elimina</button>
-          <button onClick={onClose} style={{ flex:1, padding:"10px 0", borderRadius:20, border:"none", background:P.mintLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
-          <button onClick={save} style={{ flex:1, padding:"10px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
-        </div>
-      </Modal>
-    );
-  };
-
   return (
-    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-      <div style={{ padding:"10px 14px 0", background:"#fff", borderBottom:`1px solid ${P.roseLight}` }}>
-        <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+    <div style={{ flex:1,display:"flex",flexDirection:"column",overflow:"hidden" }}>
+      <div style={{ padding:"10px 14px 0",background:"#fff",borderBottom:`1px solid ${P.roseLight}` }}>
+        <div style={{ display:"flex",gap:6,marginBottom:8 }}>
           {["month","week","day"].map(v=>(
-            <button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"6px 0", borderRadius:10, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:view===v?P.mint:P.mintLight, color:view===v?"#fff":P.gray }}>
+            <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"6px 0",borderRadius:10,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",background:view===v?P.mint:P.mintLight,color:view===v?"#fff":P.gray }}>
               {v==="month"?"Mese":v==="week"?"Settimana":"Giorno"}
             </button>
           ))}
         </div>
-        <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-          <button onClick={()=>setCalFilter("shared")} style={{ flex:1, padding:"5px 0", borderRadius:10, fontSize:12, fontWeight:500, border:"none", cursor:"pointer", background:calFilter==="shared"?user.color:P.mintLight, color:calFilter==="shared"?"#fff":P.gray }}>🌸 Condiviso</button>
-          <button onClick={()=>setCalFilter("mine")} style={{ flex:1, padding:"5px 0", borderRadius:10, fontSize:12, fontWeight:500, border:"none", cursor:"pointer", background:calFilter==="mine"?user.color:P.mintLight, color:calFilter==="mine"?"#fff":P.gray }}>👤 Il mio</button>
+        <div style={{ display:"flex",gap:6,marginBottom:8 }}>
+          <button onClick={()=>setCalFilter("shared")} style={{ flex:1,padding:"5px 0",borderRadius:10,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:calFilter==="shared"?user.color:P.mintLight,color:calFilter==="shared"?"#fff":P.gray }}>🌸 Condiviso</button>
+          <button onClick={()=>setCalFilter("mine")} style={{ flex:1,padding:"5px 0",borderRadius:10,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:calFilter==="mine"?user.color:P.mintLight,color:calFilter==="mine"?"#fff":P.gray }}>👤 Il mio</button>
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-          <button onClick={()=>navigate(-1)} style={{ width:30, height:30, borderRadius:"50%", border:"none", background:P.mintLight, cursor:"pointer", fontSize:16 }}>‹</button>
-          <span style={{ fontFamily:"'Playfair Display',serif", fontSize:14, fontWeight:700, color:P.dark }}>{headerLabel()}</span>
-          <button onClick={()=>navigate(1)} style={{ width:30, height:30, borderRadius:"50%", border:"none", background:P.mintLight, cursor:"pointer", fontSize:16 }}>›</button>
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8 }}>
+          <button onClick={()=>navigate(-1)} style={{ width:32,height:32,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18 }}>‹</button>
+          <span style={{ fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:700,color:P.dark }}>{headerLabel()}</span>
+          <button onClick={()=>navigate(1)} style={{ width:32,height:32,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18 }}>›</button>
         </div>
       </div>
 
-      <div style={{ flex:1, overflowY:"auto", paddingBottom:100 }}>
-        {view==="month" && (
+      <div style={{ flex:1,overflowY:"auto",paddingBottom:100 }}>
+        {/* MONTH */}
+        {view==="month"&&(
           <div style={{ padding:"0 10px" }}>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginTop:8, marginBottom:4 }}>
-              {["D","L","M","M","G","V","S"].map((d,i)=>(
-                <div key={i} style={{ textAlign:"center", fontSize:11, fontWeight:600, color:P.gray, padding:"3px 0" }}>{d}</div>
-              ))}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginTop:8,marginBottom:4 }}>
+              {["D","L","M","M","G","V","S"].map((d,i)=><div key={i} style={{ textAlign:"center",fontSize:11,fontWeight:600,color:P.gray,padding:"3px 0" }}>{d}</div>)}
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2 }}>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2 }}>
               {Array(new Date(year,month,1).getDay()).fill(null).map((_,i)=><div key={"e"+i} />)}
               {Array(new Date(year,month+1,0).getDate()).fill(null).map((_,i)=>{
-                const day=i+1, d=new Date(year,month,day);
-                const isToday=isSameDay(d,today), isSel=selDay&&isSameDay(d,selDay);
+                const day=i+1,d=new Date(year,month,day);
+                const isToday=isSameDay(d,today),isSel=selDay&&isSameDay(d,selDay);
                 const dayEvs=getEvForDay(d);
                 return (
                   <button key={day} onClick={()=>setSelDay(isSel?null:d)}
-                    style={{ aspectRatio:"1", borderRadius:10, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:isToday?`2px solid ${P.mint}`:"2px solid transparent", background:isSel?P.mint:"transparent", cursor:"pointer" }}>
-                    <span style={{ fontSize:12, fontWeight:500, color:isSel?"#fff":P.dark }}>{day}</span>
-                    <div style={{ display:"flex", gap:2, marginTop:1 }}>
-                      {dayEvs.slice(0,3).map((ev,di)=>(
-                        <div key={di} style={{ width:5, height:5, borderRadius:"50%", background:isSel?"#fff":getUserColor(ev.owner) }} />
-                      ))}
+                    style={{ aspectRatio:"1",borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",border:isToday?`2px solid ${P.mint}`:"2px solid transparent",background:isSel?P.mint:"transparent",cursor:"pointer" }}>
+                    <span style={{ fontSize:12,fontWeight:500,color:isSel?"#fff":P.dark }}>{day}</span>
+                    <div style={{ display:"flex",gap:2,marginTop:1 }}>
+                      {dayEvs.slice(0,3).map((ev,di)=><div key={di} style={{ width:5,height:5,borderRadius:"50%",background:isSel?"#fff":getUserColor(ev.owner) }} />)}
                     </div>
                   </button>
                 );
               })}
             </div>
-            {selDay && (
+            {selDay&&(
               <div style={{ marginTop:12 }}>
-                <p style={{ fontSize:12, fontWeight:600, color:P.gray, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{selDay.getDate()} {MONTHS[selDay.getMonth()]}</p>
+                <p style={{ fontSize:12,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,marginBottom:8 }}>{selDay.getDate()} {MONTHS[selDay.getMonth()]}</p>
                 {getEvForDay(selDay).length===0
-                  ? <p style={{ fontSize:13, color:P.gray, textAlign:"center", padding:"16px 0" }}>Nessun evento 🌸</p>
-                  : getEvForDay(selDay).map((ev,i)=>(
-                    <div key={i} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
-                      style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:14, padding:"10px 14px", marginBottom:8, border:`1.5px solid ${P.mintLight}`, cursor:ev.owner===user.name?"pointer":"default" }}>
-                      <div style={{ width:8, height:8, borderRadius:"50%", background:getUserColor(ev.owner), flexShrink:0 }} />
-                      <div style={{ flex:1 }}>
-                        <p style={{ fontSize:13, fontWeight:500, color:P.dark, margin:0 }}>{ev.text}</p>
-                        <p style={{ fontSize:11, color:P.gray, margin:0 }}>{ev.owner}{ev.timeFrom?` · ${ev.timeFrom}${ev.timeTo?` - ${ev.timeTo}`:""}`:""}
-                          {ev.duration?` · ⏱ ${ev.duration}`:""}</p>
-                      </div>
-                      {ev.owner===user.name && <span style={{ fontSize:14 }}>✏️</span>}
-                    </div>
-                  ))
+                  ?<p style={{ fontSize:13,color:P.gray,textAlign:"center",padding:"16px 0" }}>Nessun evento 🌸</p>
+                  :getEvForDay(selDay).map((ev,i)=><EventCard key={i} ev={ev} />)
                 }
               </div>
             )}
           </div>
         )}
 
-        {view==="week" && (()=>{
+        {/* WEEK */}
+        {view==="week"&&(()=>{
           const weekDays=getWeekDays();
           const allWE=weekDays.map(d=>expandForMonth(d.getFullYear(),d.getMonth()).filter(ev=>isSameDay(ev.displayDate,d)));
           return (
-            <div style={{ padding:"0 4px" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"36px repeat(7,1fr)", gap:1, marginTop:6 }}>
+            <div style={{ padding:"0 2px" }}>
+              <div style={{ display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1,marginTop:6 }}>
                 <div />
                 {weekDays.map((d,i)=>(
-                  <div key={i} style={{ textAlign:"center", paddingBottom:4 }}>
-                    <p style={{ fontSize:10, color:P.gray, margin:0 }}>{DAYS_SHORT[d.getDay()]}</p>
-                    <div style={{ width:26, height:26, borderRadius:"50%", background:isSameDay(d,today)?P.mint:"transparent", display:"flex", alignItems:"center", justifyContent:"center", margin:"2px auto 0" }}>
-                      <span style={{ fontSize:12, fontWeight:600, color:isSameDay(d,today)?"#fff":P.dark }}>{d.getDate()}</span>
+                  <div key={i} style={{ textAlign:"center",paddingBottom:4 }}>
+                    <p style={{ fontSize:10,color:P.gray,margin:0 }}>{DAYS_SHORT[d.getDay()]}</p>
+                    <div style={{ width:24,height:24,borderRadius:"50%",background:isSameDay(d,today)?P.mint:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"2px auto 0" }}>
+                      <span style={{ fontSize:11,fontWeight:600,color:isSameDay(d,today)?"#fff":P.dark }}>{d.getDate()}</span>
                     </div>
                   </div>
                 ))}
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"36px repeat(7,1fr)", gap:1 }}>
-                {Array.from({length:24},(_,h)=>(
-                  [
-                    <div key={"h"+h} style={{ fontSize:9, color:P.gray, paddingTop:2, textAlign:"right", paddingRight:3, height:PX_PER_HOUR }}>{h}:00</div>,
-                    ...weekDays.map((d,di)=>{
-                      const dayEvs=allWE[di].filter(ev=>ev.timeFrom&&Math.floor(timeToMin(ev.timeFrom)/60)===h);
-                      return (
-                        <div key={"c"+h+di} style={{ height:PX_PER_HOUR, borderTop:`1px solid ${P.mintLight}`, position:"relative" }}>
-                          {dayEvs.map((ev,ei)=>{
-                            const fromMin=timeToMin(ev.timeFrom)%60;
-                            const durMin=ev.timeTo?timeToMin(ev.timeTo)-timeToMin(ev.timeFrom):60;
-                            const top=(fromMin/60)*PX_PER_HOUR;
-                            const height=Math.max((durMin/60)*PX_PER_HOUR,16);
-                            return (
-                              <div key={ei} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
-                                style={{ position:"absolute", top, left:1, right:1, height, background:getUserColor(ev.owner), borderRadius:4, padding:"1px 3px", fontSize:8, color:"#fff", overflow:"hidden", cursor:ev.owner===user.name?"pointer":"default", zIndex:2 }}>
-                                {ev.text}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })
-                  ]
-                ))}
+              <div style={{ display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1 }}>
+                {Array.from({length:24},(_,h)=>[
+                  <div key={"h"+h} style={{ fontSize:9,color:P.gray,paddingTop:2,textAlign:"right",paddingRight:3,height:PX_PER_HOUR }}>{h}:00</div>,
+                  ...weekDays.map((d,di)=>{
+                    const dayEvs=allWE[di].filter(ev=>ev.timeFrom&&Math.floor(timeToMin(ev.timeFrom)/60)===h);
+                    return (
+                      <div key={"c"+h+di} style={{ height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,position:"relative" }}>
+                        {dayEvs.map((ev,ei)=>{
+                          const fromMin=timeToMin(ev.timeFrom)%60;
+                          const durMin=ev.timeTo?timeToMin(ev.timeTo)-timeToMin(ev.timeFrom):60;
+                          const top=(fromMin/60)*PX_PER_HOUR,height=Math.max((durMin/60)*PX_PER_HOUR,16);
+                          return <div key={ei} onClick={()=>ev.owner===user.name&&setEditEv({...ev,date:italianFromIso(ev.date)})} style={{ position:"absolute",top,left:1,right:1,height,background:getUserColor(ev.owner),borderRadius:4,padding:"1px 3px",fontSize:8,color:"#fff",overflow:"hidden",cursor:ev.owner===user.name?"pointer":"default",zIndex:2 }}>{ev.text}</div>;
+                        })}
+                      </div>
+                    );
+                  })
+                ])}
               </div>
             </div>
           );
         })()}
 
-        {view==="day" && (()=>{
+        {/* DAY */}
+        {view==="day"&&(()=>{
           const dayEvs=expandForMonth(curDate.getFullYear(),curDate.getMonth()).filter(ev=>isSameDay(ev.displayDate,curDate));
           const timedEvs=dayEvs.filter(ev=>ev.timeFrom);
           const allDayEvs=dayEvs.filter(ev=>!ev.timeFrom);
           return (
             <div style={{ padding:"0 12px" }}>
-              {allDayEvs.map((ev,i)=>(
-                <div key={"a"+i} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
-                  style={{ background:getUserColor(ev.owner), borderRadius:10, padding:"8px 12px", marginTop:8, marginBottom:4, cursor:ev.owner===user.name?"pointer":"default" }}>
-                  <p style={{ fontSize:13, fontWeight:600, color:"#fff", margin:0 }}>{ev.text}</p>
-                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.85)", margin:0 }}>{ev.owner}{ev.duration?` · ⏱ ${ev.duration}`:""}</p>
+              {allDayEvs.length>0&&allDayEvs.map((ev,i)=>(
+                <div key={"a"+i} onClick={()=>ev.owner===user.name&&setEditEv({...ev,date:italianFromIso(ev.date)})}
+                  style={{ background:getUserColor(ev.owner),borderRadius:10,padding:"8px 12px",marginTop:8,marginBottom:4,cursor:ev.owner===user.name?"pointer":"default" }}>
+                  <p style={{ fontSize:13,fontWeight:600,color:"#fff",margin:0 }}>{ev.text}</p>
+                  <p style={{ fontSize:11,color:"rgba(255,255,255,0.85)",margin:0 }}>{ev.owner}{ev.duration?` · ⏱ ${ev.duration}`:""}</p>
                 </div>
               ))}
-              <div style={{ position:"relative", marginTop:8 }}>
+              <div style={{ position:"relative",marginTop:8 }}>
                 {Array.from({length:24},(_,h)=>(
-                  <div key={h} style={{ display:"flex", gap:8, height:PX_PER_HOUR, borderTop:`1px solid ${P.mintLight}` }}>
-                    <span style={{ width:40, fontSize:11, color:P.gray, paddingTop:4, flexShrink:0 }}>{h}:00</span>
+                  <div key={h} style={{ display:"flex",gap:8,height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}` }}>
+                    <span style={{ width:40,fontSize:11,color:P.gray,paddingTop:4,flexShrink:0 }}>{h}:00</span>
                   </div>
                 ))}
-                <div style={{ position:"absolute", top:0, left:48, right:0 }}>
+                <div style={{ position:"absolute",top:0,left:48,right:0 }}>
                   {timedEvs.map((ev,i)=>{
                     const fromMin=timeToMin(ev.timeFrom);
                     const toMin=ev.timeTo?timeToMin(ev.timeTo):fromMin+60;
-                    const top=(fromMin/60)*PX_PER_HOUR;
-                    const height=Math.max(((toMin-fromMin)/60)*PX_PER_HOUR,28);
+                    const top=(fromMin/60)*PX_PER_HOUR,height=Math.max(((toMin-fromMin)/60)*PX_PER_HOUR,28);
                     return (
-                      <div key={i} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
-                        style={{ position:"absolute", top, left:0, right:0, height, background:getUserColor(ev.owner), borderRadius:10, padding:"5px 10px", opacity:0.93, cursor:ev.owner===user.name?"pointer":"default" }}>
-                        <p style={{ fontSize:13, fontWeight:600, color:"#fff", margin:0 }}>{ev.text}</p>
-                        <p style={{ fontSize:11, color:"rgba(255,255,255,0.85)", margin:0 }}>{ev.owner} · {ev.timeFrom}{ev.timeTo?` - ${ev.timeTo}`:""}{ev.duration?` · ${ev.duration}`:""}</p>
+                      <div key={i} onClick={()=>ev.owner===user.name&&setEditEv({...ev,date:italianFromIso(ev.date)})}
+                        style={{ position:"absolute",top,left:0,right:0,height,background:getUserColor(ev.owner),borderRadius:10,padding:"5px 10px",opacity:0.93,cursor:ev.owner===user.name?"pointer":"default" }}>
+                        <p style={{ fontSize:13,fontWeight:600,color:"#fff",margin:0 }}>{ev.text}</p>
+                        <p style={{ fontSize:11,color:"rgba(255,255,255,0.85)",margin:0 }}>{ev.owner} · {ev.timeFrom}{ev.timeTo?` - ${ev.timeTo}`:""}{ev.duration?` · ${ev.duration}`:""}</p>
                       </div>
                     );
                   })}
@@ -601,135 +642,136 @@ function CalendarView({ db, user, users }) {
         })()}
       </div>
 
-      <div style={{ position:"fixed", bottom:90, right:16, display:"flex", flexDirection:"column", gap:8, alignItems:"flex-end" }}>
-        <button onClick={()=>setShowTpl(true)} style={{ width:44, height:44, borderRadius:"50%", border:"none", background:P.mintLight, cursor:"pointer", fontSize:18, boxShadow:"0 2px 8px rgba(0,0,0,0.12)" }}>📋</button>
-        <button onClick={()=>setShowAdd(true)} style={{ width:52, height:52, borderRadius:"50%", border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, cursor:"pointer", fontSize:22, color:"#fff", boxShadow:"0 4px 12px rgba(91,191,160,0.4)" }}>+</button>
+      {/* FABs */}
+      <div style={{ position:"fixed",bottom:90,right:16,display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end" }}>
+        <button onClick={()=>setShowTpl(true)} style={{ width:44,height:44,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18,boxShadow:"0 2px 8px rgba(0,0,0,0.12)" }}>📋</button>
+        <button onClick={()=>setShowAdd(true)} style={{ width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(91,191,160,0.4)" }}>+</button>
       </div>
 
-      {showAdd && (
+      {/* ADD EVENT */}
+      {showAdd&&(
         <Modal title="📅 Nuovo evento" onClose={()=>setShowAdd(false)}>
-          {templates.length>0 && (
-            <div style={{ marginBottom:12 }}>
-              <Label>Usa un tuo template</Label>
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {templates.length>0&&(
+            <div style={{ marginBottom:8 }}>
+              <Lbl>Usa un template</Lbl>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
                 {templates.map(t=>(
-                  <button key={t.id} onClick={()=>applyTemplate(t)} style={{ padding:"5px 12px", borderRadius:16, fontSize:12, border:`1px solid ${P.mint}`, background:P.mintLight, cursor:"pointer", color:P.dark }}>
+                  <button key={t.id} onClick={()=>applyTemplate(t)} style={{ padding:"6px 12px",borderRadius:16,fontSize:12,border:`1px solid ${P.mint}`,background:P.mintLight,cursor:"pointer",color:P.dark }}>
                     {t.name}{t.timeFrom?` (${t.timeFrom}${t.timeTo?`-${t.timeTo}`:""})`:""}
                   </button>
                 ))}
               </div>
             </div>
           )}
-          <Inp label="Nome evento (es. Dentista, Palestra, Riunione...)" value={newEv.text} onChange={e=>setNewEv(p=>({...p,text:e.target.value}))} />
-          <Label>Data</Label>
-          <input type="date" value={newEv.date} onChange={e=>setNewEv(p=>({...p,date:e.target.value}))} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
-          <TimeInputRow label="Orario fisso (lascia vuoto per evento tutto il giorno)" from={newEv.timeFrom} to={newEv.timeTo} onFrom={e=>setNewEv(p=>({...p,timeFrom:e.target.value}))} onTo={e=>setNewEv(p=>({...p,timeTo:e.target.value}))} />
-          <Inp label="Durata (es. 1 ora, 30 min) — alternativa agli orari fissi" value={newEv.duration} onChange={e=>setNewEv(p=>({...p,duration:e.target.value}))} style={{ marginTop:4 }} />
-          <Label>Ricorrenza</Label>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
-            {["none","daily","weekly","monthly"].map(r=>(
-              <button key={r} onClick={()=>setNewEv(p=>({...p,recurrence:r}))} style={{ padding:"4px 10px", borderRadius:20, fontSize:11, border:"none", cursor:"pointer", background:newEv.recurrence===r?P.mint:P.mintLight, color:newEv.recurrence===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
-            ))}
-          </div>
-          <div style={{ display:"flex", gap:6, marginBottom:16 }}>
-            <button onClick={()=>setNewEv(p=>({...p,isShared:true}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:newEv.isShared?P.mint:P.mintLight, color:newEv.isShared?"#fff":P.gray }}>🌸 Condiviso</button>
-            <button onClick={()=>setNewEv(p=>({...p,isShared:false}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:!newEv.isShared?P.mint:P.mintLight, color:!newEv.isShared?"#fff":P.gray }}>👤 Solo mio</button>
-          </div>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={()=>setShowAdd(false)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.mintLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
-            <button onClick={addEvent} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
-          </div>
+          <TxtInp label="Nome evento (es. Dentista, Palestra...)" value={newEv.text} onChange={e=>setNewEv(p=>({...p,text:e.target.value}))} />
+          <DateInp label="Data (es. 08/05/2026)" value={newEv.date} onChange={v=>setNewEv(p=>({...p,date:v}))} />
+          <TimeRow label="Orario fisso (lascia vuoto per evento tutto il giorno)" from={newEv.timeFrom} to={newEv.timeTo} onFrom={v=>setNewEv(p=>({...p,timeFrom:v}))} onTo={v=>setNewEv(p=>({...p,timeTo:v}))} />
+          <TxtInp label="Durata (es. 1 ora, 30 min) — alternativa agli orari fissi" value={newEv.duration} onChange={e=>setNewEv(p=>({...p,duration:e.target.value}))} />
+          <RecRow value={newEv.recurrence} onChange={v=>setNewEv(p=>({...p,recurrence:v}))} />
+          <SharedRow label="Visibilità" isShared={newEv.isShared} onChange={v=>setNewEv(p=>({...p,isShared:v}))} />
+          <BtnRow onCancel={()=>setShowAdd(false)} onSave={addEvent} />
         </Modal>
       )}
 
-      {showTpl && (
+      {/* TEMPLATE MANAGER */}
+      {showTpl&&(
         <Modal title="📋 I miei template" onClose={()=>setShowTpl(false)}>
           {templates.length===0
-            ? <p style={{ fontSize:13, color:P.gray, textAlign:"center", marginBottom:16 }}>Nessun template ancora 🌿</p>
-            : templates.map(t=>(
-              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:14, padding:"10px 14px", marginBottom:8, border:`1.5px solid ${P.mintLight}` }}>
+            ?<p style={{ fontSize:13,color:P.gray,textAlign:"center",marginBottom:16 }}>Nessun template ancora 🌿</p>
+            :templates.map(t=>(
+              <div key={t.id} style={{ display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${P.mintLight}` }}>
                 <div style={{ flex:1 }}>
-                  <p style={{ fontSize:14, fontWeight:500, color:P.dark, margin:0 }}>{t.name}</p>
-                  <p style={{ fontSize:12, color:P.gray, margin:0 }}>
-                    {t.timeFrom&&`🕐 ${t.timeFrom}${t.timeTo?` → ${t.timeTo}`:""}`}
-                    {t.duration&&` · ⏱ ${t.duration}`}
-                  </p>
+                  <p style={{ fontSize:14,fontWeight:500,color:P.dark,margin:0 }}>{t.name}</p>
+                  <p style={{ fontSize:12,color:P.gray,margin:0 }}>{t.timeFrom?`🕐 ${t.timeFrom}${t.timeTo?` → ${t.timeTo}`:""}`:""}{t.duration?` · ⏱ ${t.duration}`:""}</p>
                 </div>
-                <button onClick={()=>deleteTemplate(t.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>🗑</button>
+                <button onClick={()=>applyTemplate(t)} style={{ padding:"5px 10px",borderRadius:12,fontSize:12,border:`1px solid ${P.mint}`,background:P.mintLight,cursor:"pointer",color:P.dark }}>Usa</button>
+                <button onClick={()=>deleteTemplate(t.id)} style={{ border:"none",background:"none",cursor:"pointer",fontSize:18 }}>🗑</button>
               </div>
             ))
           }
-          <p style={{ fontSize:13, fontWeight:600, color:P.dark, margin:"12px 0 4px" }}>Nuovo template</p>
-          <Inp label="Nome impegno (es. Turno mattina, Palestra, Riunione...)" value={newTpl.name} onChange={e=>setNewTpl(p=>({...p,name:e.target.value}))} />
-          <TimeInputRow label="Orario fisso (opzionale — lascia vuoto se l'orario varia)" from={newTpl.timeFrom} to={newTpl.timeTo} onFrom={e=>setNewTpl(p=>({...p,timeFrom:e.target.value}))} onTo={e=>setNewTpl(p=>({...p,timeTo:e.target.value}))} />
-          <Inp label="Durata (es. 1 ora, 45 min) — per impegni senza orario fisso come palestra" value={newTpl.duration} onChange={e=>setNewTpl(p=>({...p,duration:e.target.value}))} style={{ marginTop:4 }} />
-          <div style={{ display:"flex", gap:10, marginTop:16 }}>
-            <button onClick={()=>setShowTpl(false)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.mintLight, color:P.gray, cursor:"pointer" }}>Chiudi</button>
-            <button onClick={addTemplate} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>+ Aggiungi</button>
+          <p style={{ fontSize:13,fontWeight:600,color:P.dark,margin:"16px 0 4px" }}>Nuovo template</p>
+          <TxtInp label="Nome impegno (es. Turno mattina, Palestra...)" value={newTpl.name} onChange={e=>setNewTpl(p=>({...p,name:e.target.value}))} />
+          <TimeRow label="Orario fisso (opzionale)" from={newTpl.timeFrom} to={newTpl.timeTo} onFrom={v=>setNewTpl(p=>({...p,timeFrom:v}))} onTo={v=>setNewTpl(p=>({...p,timeTo:v}))} />
+          <TxtInp label="Durata (es. 1 ora, 45 min) — per impegni senza orario fisso" value={newTpl.duration} onChange={e=>setNewTpl(p=>({...p,duration:e.target.value}))} />
+          <div style={{ display:"flex",gap:10,marginTop:16 }}>
+            <button onClick={()=>setShowTpl(false)} style={{ flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer" }}>Chiudi</button>
+            <button onClick={addTemplate} style={{ flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600 }}>+ Aggiungi</button>
           </div>
         </Modal>
       )}
 
-      {editEvent && <EventEditModal ev={editEvent} onClose={()=>setEditEvent(null)} />}
+      {/* EDIT EVENT */}
+      {editEv&&(
+        <Modal title="✏️ Modifica evento" onClose={()=>setEditEv(null)}>
+          <TxtInp label="Nome evento" value={editEv.text} onChange={e=>setEditEv(p=>({...p,text:e.target.value}))} />
+          <DateInp label="Data (es. 08/05/2026)" value={editEv.date||""} onChange={v=>setEditEv(p=>({...p,date:v}))} />
+          <TimeRow label="Orario fisso (lascia vuoto per tutto il giorno)" from={editEv.timeFrom||""} to={editEv.timeTo||""} onFrom={v=>setEditEv(p=>({...p,timeFrom:v}))} onTo={v=>setEditEv(p=>({...p,timeTo:v}))} />
+          <TxtInp label="Durata (es. 1 ora, 30 min)" value={editEv.duration||""} onChange={e=>setEditEv(p=>({...p,duration:e.target.value}))} />
+          <RecRow value={editEv.recurrence||"none"} onChange={v=>setEditEv(p=>({...p,recurrence:v}))} />
+          <SharedRow label="Visibilità" isShared={editEv.isShared} onChange={v=>setEditEv(p=>({...p,isShared:v}))} />
+          <BtnRow onCancel={()=>setEditEv(null)} onSave={saveEditEv} onDelete={()=>{ deleteEvent(editEv.id); setEditEv(null); }} />
+        </Modal>
+      )}
     </div>
   );
 }
 
+// ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("shopping");
   const [db, setDb] = useState(null);
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState({});
 
-  useEffect(() => {
+  useEffect(()=>{
     try {
       const app=initializeApp(FIREBASE_CONFIG);
       const database=getDatabase(app);
       setDb(database);
       onValue(ref(database,"users"),snap=>setUsers(snap.val()||{}));
     } catch(e){ console.error(e); }
-  }, []);
+  },[]);
 
-  useEffect(() => {
+  useEffect(()=>{
     const saved=localStorage.getItem("puzzoni_user");
-    if (saved) setUser(JSON.parse(saved));
-  }, []);
+    if(saved) setUser(JSON.parse(saved));
+  },[]);
 
   const handleOnboarding=(name,color)=>{
     const u={name,color};
     setUser(u);
     localStorage.setItem("puzzoni_user",JSON.stringify(u));
-    if (db) set(ref(db,`users/${name}`),u);
+    if(db) set(ref(db,`users/${name}`),u);
   };
 
-  if (!user) return <Onboarding onComplete={handleOnboarding} />;
+  if(!user) return <Onboarding onComplete={handleOnboarding} />;
 
   const tabs=[
-    { id:"shopping", label:"Spesa", emoji:"🛒" },
-    { id:"todo", label:"Attività", emoji:"✅" },
-    { id:"calendar", label:"Calendario", emoji:"📅" },
+    {id:"shopping",label:"Spesa",emoji:"🛒"},
+    {id:"todo",label:"Attività",emoji:"✅"},
+    {id:"calendar",label:"Calendario",emoji:"📅"},
   ];
 
   return (
-    <div style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", background:P.cream, fontFamily:"'Lato',sans-serif", maxWidth:430, margin:"0 auto" }}>
-      <div style={{ padding:"48px 20px 12px", background:"#fff", borderBottom:`1px solid ${P.roseLight}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+    <div style={{ minHeight:"100dvh",display:"flex",flexDirection:"column",background:P.cream,fontFamily:"'Lato',sans-serif",maxWidth:430,margin:"0 auto" }}>
+      <div style={{ padding:"48px 20px 12px",background:"#fff",borderBottom:`1px solid ${P.roseLight}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
         <div>
-          <h1 style={{ fontFamily:"'Playfair Display',serif", color:P.dark, fontSize:24, fontWeight:700, margin:0 }}>Puzzoni 🐾</h1>
-          <p style={{ color:P.gray, fontSize:12, margin:0 }}>Ciao {user.name}! 💕</p>
+          <h1 style={{ fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:24,fontWeight:700,margin:0 }}>Puzzoni 🐾</h1>
+          <p style={{ color:P.gray,fontSize:12,margin:0 }}>Ciao {user.name}! 💕</p>
         </div>
-        <div style={{ width:12, height:12, borderRadius:"50%", background:user.color, border:`2px solid ${P.dark}` }} />
+        <div style={{ width:12,height:12,borderRadius:"50%",background:user.color,border:`2px solid ${P.dark}` }} />
       </div>
-      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {tab==="shopping" && <ShoppingList db={db} user={user} />}
-        {tab==="todo" && <TodoList db={db} user={user} />}
-        {tab==="calendar" && <CalendarView db={db} user={user} users={users} />}
+      <div style={{ flex:1,display:"flex",flexDirection:"column",overflow:"hidden" }}>
+        {tab==="shopping"&&<ShoppingList db={db} user={user} />}
+        {tab==="todo"&&<TodoList db={db} user={user} />}
+        {tab==="calendar"&&<CalendarView db={db} user={user} users={users} />}
       </div>
-      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:430, display:"flex", background:"#fff", borderTop:`1px solid ${P.roseLight}`, paddingBottom:"env(safe-area-inset-bottom)" }}>
+      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",background:"#fff",borderTop:`1px solid ${P.roseLight}`,paddingBottom:"env(safe-area-inset-bottom)" }}>
         {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0 8px", gap:2, border:"none", background:"none", cursor:"pointer" }}>
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 8px",gap:2,border:"none",background:"none",cursor:"pointer" }}>
             <span style={{ fontSize:20 }}>{t.emoji}</span>
-            <span style={{ fontSize:11, fontWeight:600, color:tab===t.id?P.roseDark:P.gray }}>{t.label}</span>
-            {tab===t.id && <div style={{ width:6, height:6, borderRadius:"50%", background:P.rose }} />}
+            <span style={{ fontSize:11,fontWeight:600,color:tab===t.id?P.roseDark:P.gray }}>{t.label}</span>
+            {tab===t.id&&<div style={{ width:6,height:6,borderRadius:"50%",background:P.rose }} />}
           </button>
         ))}
       </div>
