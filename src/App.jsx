@@ -12,643 +12,669 @@ const FIREBASE_CONFIG = {
   appId: "1:516731252655:web:1d2a200cb1e7c0a7de895a"
 };
 
-const PALETTE = {
+const P = {
   rose: "#F9A8C9", roseLight: "#FDE8F0", roseDark: "#E07BAA",
   peach: "#FDBA9B", peachLight: "#FEF0E8",
-  lavender: "#C4B5E8", lavenderLight: "#EDE8F9", lavenderDark: "#9B88D4",
+  lav: "#C4B5E8", lavLight: "#EDE8F9", lavDark: "#9B88D4",
   mint: "#A8D8C8", mintLight: "#E8F6F1", mintDark: "#5BBFA0",
-  cream: "#FFF8F3", warmGray: "#7A6B6B", darkBrown: "#3D2B2B",
-  sky: "#A8C8E8", skyLight: "#E8F1F9",
+  cream: "#FFF8F3", gray: "#7A6B6B", dark: "#3D2B2B",
 };
 
-const CALENDAR_COLORS = [
+const CAL_COLORS = [
   { name: "Rosa", value: "#F9A8C9" }, { name: "Lavanda", value: "#C4B5E8" },
   { name: "Menta", value: "#A8D8C8" }, { name: "Pesca", value: "#FDBA9B" },
   { name: "Cielo", value: "#A8C8E8" }, { name: "Giallo", value: "#F9E4A8" },
 ];
 
-function formatDate(d) {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
-}
-function formatTime(d) {
-  if (!d) return "";
-  return new Date(d).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-}
-function isSameDay(d1, d2) {
-  return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
-}
 const MONTHS = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const DAYS_SHORT = ["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
+const REC_LABELS = { none: "Una volta", daily: "Ogni giorno", weekly: "Ogni settimana", monthly: "Ogni mese" };
+const PX_PER_HOUR = 60;
 
-// ── ONBOARDING ──────────────────────────────────────────────────────────────
-function Onboarding({ onComplete }) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(CALENDAR_COLORS[0].value);
+function fmtDate(d) { if (!d) return ""; return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }); }
+function fmtTime(d) { if (!d) return ""; return new Date(d).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); }
+function isSameDay(a, b) { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+function timeToMin(t) { if (!t) return null; const [h,m]=t.split(":").map(Number); return h*60+(m||0); }
+
+function Label({ children }) {
+  return <p style={{ fontSize:11, fontWeight:600, color:P.gray, marginBottom:4, marginTop:8 }}>{children}</p>;
+}
+
+function Inp({ label, color=P.mint, colorLight, ...props }) {
+  const bg = colorLight || P.mintLight;
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-8" style={{ background: PALETTE.cream }}>
-      <div className="text-5xl mb-4">🐾</div>
-      <h1 style={{ fontFamily: "'Playfair Display', serif", color: PALETTE.darkBrown, fontSize: 28, fontWeight: 700, marginBottom: 6 }}>Benvenuto/a!</h1>
-      <p style={{ color: PALETTE.warmGray, fontSize: 14, marginBottom: 32, textAlign: "center" }}>Come ti chiami? Scegli anche il colore del tuo calendario.</p>
-      <input
-        className="w-full rounded-2xl px-4 py-3 mb-4 text-sm outline-none"
-        style={{ background: PALETTE.roseLight, color: PALETTE.darkBrown, border: `1.5px solid ${PALETTE.rose}`, maxWidth: 320 }}
-        placeholder="Il tuo nome..."
-        value={name}
-        onChange={e => setName(e.target.value)}
-      />
-      <div style={{ display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap", justifyContent: "center", maxWidth: 320 }}>
-        {CALENDAR_COLORS.map(c => (
-          <button key={c.value} onClick={() => setColor(c.value)}
-            style={{ width: 40, height: 40, borderRadius: "50%", background: c.value, border: color === c.value ? `3px solid ${PALETTE.darkBrown}` : "3px solid transparent", cursor: "pointer" }}
-            title={c.name}
-          />
-        ))}
-      </div>
-      <button
-        onClick={() => { if (name.trim()) onComplete(name.trim(), color); }}
-        style={{ background: `linear-gradient(135deg, ${PALETTE.rose}, ${PALETTE.roseDark})`, color: "#fff", border: "none", borderRadius: 20, padding: "12px 40px", fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: name.trim() ? 1 : 0.5 }}
-      >Iniziamo 💕</button>
+    <div>
+      {label && <Label>{label}</Label>}
+      <input {...props} style={{ width:"100%", border:`1.5px solid ${color}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:bg, color:P.dark, boxSizing:"border-box", ...props.style }} />
     </div>
   );
 }
 
-// ── SHOPPING ─────────────────────────────────────────────────────────────────
-function ShoppingList({ db, user }) {
+function Modal({ onClose, children, title }) {
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", padding:16, background:"rgba(61,43,43,0.45)", backdropFilter:"blur(4px)" }}>
+      <div style={{ width:"100%", maxWidth:430, background:P.cream, borderRadius:28, padding:24, maxHeight:"88vh", overflowY:"auto" }}>
+        {title && <h3 style={{ fontFamily:"'Playfair Display',serif", color:P.dark, fontSize:18, marginBottom:16, marginTop:0 }}>{title}</h3>}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Onboarding({ onComplete }) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(CAL_COLORS[0].value);
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:50, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:32, background:P.cream }}>
+      <div style={{ fontSize:56, marginBottom:12 }}>🐾</div>
+      <h1 style={{ fontFamily:"'Playfair Display',serif", color:P.dark, fontSize:28, fontWeight:700, marginBottom:6, textAlign:"center" }}>Benvenuto/a!</h1>
+      <p style={{ color:P.gray, fontSize:14, marginBottom:28, textAlign:"center" }}>Come ti chiami? Scegli il colore del tuo calendario.</p>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Il tuo nome..."
+        style={{ width:"100%", maxWidth:320, border:`1.5px solid ${P.rose}`, borderRadius:16, padding:"12px 16px", fontSize:15, outline:"none", background:P.roseLight, color:P.dark, marginBottom:24, boxSizing:"border-box" }} />
+      <div style={{ display:"flex", gap:12, marginBottom:32, flexWrap:"wrap", justifyContent:"center" }}>
+        {CAL_COLORS.map(c => (
+          <button key={c.value} onClick={()=>setColor(c.value)} title={c.name}
+            style={{ width:42, height:42, borderRadius:"50%", background:c.value, border:color===c.value?`3px solid ${P.dark}`:"3px solid transparent", cursor:"pointer" }} />
+        ))}
+      </div>
+      <button onClick={()=>{ if(name.trim()) onComplete(name.trim(),color); }}
+        style={{ background:`linear-gradient(135deg,${P.rose},${P.roseDark})`, color:"#fff", border:"none", borderRadius:20, padding:"13px 44px", fontSize:15, fontWeight:600, cursor:"pointer", opacity:name.trim()?1:0.5 }}>
+        Iniziamo 💕
+      </button>
+    </div>
+  );
+}
+
+function ShoppingList({ db }) {
   const [items, setItems] = useState([]);
-  const [savedArticles, setSavedArticles] = useState([]);
+  const [saved, setSaved] = useState([]);
   const [text, setText] = useState("");
   const [qty, setQty] = useState("");
-  const [recurrence, setRecurrence] = useState("none");
-  const [suggestions, setSuggestions] = useState([]);
+  const [rec, setRec] = useState("none");
+  const [sugg, setSugg] = useState([]);
+  const [editing, setEditing] = useState(null);
   const inputRef = useRef();
 
   useEffect(() => {
     if (!db) return;
-    const unsub1 = onValue(ref(db, "shopping"), snap => {
-      const d = snap.val() || {};
-      setItems(Object.entries(d).map(([id, v]) => ({ id, ...v })));
-    });
-    const unsub2 = onValue(ref(db, "shoppingArticles"), snap => {
-      const d = snap.val() || {};
-      setSavedArticles(Object.entries(d).map(([id, v]) => ({ id, ...v })).sort((a, b) => (b.count || 0) - (a.count || 0)));
-    });
-    return () => { unsub1(); unsub2(); };
+    const u1 = onValue(ref(db,"shopping"), snap => { const d=snap.val()||{}; setItems(Object.entries(d).map(([id,v])=>({id,...v}))); });
+    const u2 = onValue(ref(db,"shoppingArticles"), snap => { const d=snap.val()||{}; setSaved(Object.entries(d).map(([id,v])=>({id,...v})).sort((a,b)=>(b.count||0)-(a.count||0))); });
+    return ()=>{ u1(); u2(); };
   }, [db]);
 
   useEffect(() => {
-    if (!text.trim()) { setSuggestions([]); return; }
-    setSuggestions(savedArticles.filter(a => a.name.toLowerCase().includes(text.toLowerCase()) && a.name.toLowerCase() !== text.toLowerCase()));
-  }, [text, savedArticles]);
+    if (!text.trim()) { setSugg([]); return; }
+    setSugg(saved.filter(a=>a.name.toLowerCase().includes(text.toLowerCase())&&a.name.toLowerCase()!==text.toLowerCase()));
+  }, [text, saved]);
 
   const addItem = () => {
-    if (!text.trim() || !db) return;
-    push(ref(db, "shopping"), { text: text.trim(), qty: qty || null, recurrence, checked: false, createdAt: Date.now() });
-    // Update saved articles
-    const existing = savedArticles.find(a => a.name.toLowerCase() === text.trim().toLowerCase());
-    if (existing) update(ref(db, `shoppingArticles/${existing.id}`), { count: (existing.count || 0) + 1 });
-    else push(ref(db, "shoppingArticles"), { name: text.trim(), count: 1 });
-    setText(""); setQty(""); setRecurrence("none"); setSuggestions([]);
+    if (!text.trim()||!db) return;
+    push(ref(db,"shopping"),{ text:text.trim(), qty:qty||null, recurrence:rec, checked:false, createdAt:Date.now() });
+    const ex = saved.find(a=>a.name.toLowerCase()===text.trim().toLowerCase());
+    if (ex) update(ref(db,`shoppingArticles/${ex.id}`),{ count:(ex.count||0)+1 });
+    else push(ref(db,"shoppingArticles"),{ name:text.trim(), count:1 });
+    setText(""); setQty(""); setRec("none"); setSugg([]);
   };
 
   const toggleItem = (item) => {
     if (!db) return;
-    update(ref(db, `shopping/${item.id}`), { checked: !item.checked, ...((!item.checked && item.recurrence !== "none") ? { lastCompleted: Date.now() } : {}) });
+    update(ref(db,`shopping/${item.id}`),{ checked:!item.checked, ...(!item.checked&&item.recurrence!=="none"?{lastCompleted:Date.now()}:{}) });
   };
 
-  const deleteItem = (id) => remove(ref(db, `shopping/${id}`));
-  const deleteSaved = (id) => remove(ref(db, `shoppingArticles/${id}`));
+  const saveEdit = () => {
+    if (!editing||!db) return;
+    update(ref(db,`shopping/${editing.id}`),{ text:editing.text, qty:editing.qty||null, recurrence:editing.recurrence||"none" });
+    setEditing(null);
+  };
 
-  const unchecked = items.filter(i => !i.checked);
-  const checked = items.filter(i => i.checked);
+  const deleteItem = (id) => { remove(ref(db,`shopping/${id}`)); if(editing?.id===id) setEditing(null); };
+  const deleteSaved = (id) => remove(ref(db,`shoppingArticles/${id}`));
+  const unchecked = items.filter(i=>!i.checked);
+  const checked = items.filter(i=>i.checked);
+
+  const Row = ({ item }) => (
+    <div style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:16, padding:"11px 14px", border:`1.5px solid ${P.roseLight}`, opacity:item.checked?0.65:1, marginBottom:8 }}>
+      <button onClick={()=>toggleItem(item)} style={{ width:24, height:24, borderRadius:"50%", border:`2px solid ${P.rose}`, background:item.checked?P.rose:"none", cursor:"pointer", flexShrink:0, color:"#fff", fontSize:12 }}>
+        {item.checked?"✓":""}
+      </button>
+      <div style={{ flex:1, minWidth:0 }}>
+        <p style={{ fontSize:14, fontWeight:500, color:P.dark, margin:0, textDecoration:item.checked?"line-through":"none" }}>{item.text}</p>
+        <div style={{ display:"flex", gap:8 }}>
+          {item.qty && <span style={{ fontSize:11, color:P.gray }}>{item.qty}</span>}
+          {item.recurrence&&item.recurrence!=="none" && <span style={{ fontSize:11, color:P.roseDark }}>🔁 {REC_LABELS[item.recurrence]}</span>}
+        </div>
+      </div>
+      <button onClick={()=>setEditing({...item})} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>✏️</button>
+      <button onClick={()=>deleteItem(item.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>🗑</button>
+    </div>
+  );
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", paddingBottom: 100 }}>
-      {/* Input */}
-      <div style={{ padding: "16px 16px 0" }}>
-        <div style={{ background: "#fff", borderRadius: 20, padding: 16, boxShadow: "0 2px 12px rgba(249,168,201,0.15)", border: `1.5px solid ${PALETTE.roseLight}`, marginBottom: 12 }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input ref={inputRef} value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem()}
-              placeholder="Aggiungi prodotto..." style={{ flex: 1, border: `1.5px solid ${PALETTE.rose}`, borderRadius: 12, padding: "8px 12px", fontSize: 14, outline: "none", background: PALETTE.roseLight, color: PALETTE.darkBrown }} />
-            <input value={qty} onChange={e => setQty(e.target.value)} placeholder="Qtà" style={{ width: 60, border: `1.5px solid ${PALETTE.peach}`, borderRadius: 12, padding: "8px 8px", fontSize: 14, outline: "none", background: PALETTE.peachLight, color: PALETTE.darkBrown }} />
+    <div style={{ flex:1, overflowY:"auto", paddingBottom:100 }}>
+      <div style={{ padding:"16px 16px 0" }}>
+        <div style={{ background:"#fff", borderRadius:20, padding:16, border:`1.5px solid ${P.roseLight}`, marginBottom:12 }}>
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()}
+              placeholder="Nome prodotto..." style={{ flex:1, border:`1.5px solid ${P.rose}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.roseLight, color:P.dark }} />
+            <input value={qty} onChange={e=>setQty(e.target.value)} placeholder="Qtà"
+              style={{ width:64, border:`1.5px solid ${P.peach}`, borderRadius:12, padding:"8px 8px", fontSize:14, outline:"none", background:P.peachLight, color:P.dark }} />
           </div>
-          {suggestions.length > 0 && (
-            <div style={{ background: PALETTE.roseLight, borderRadius: 12, marginBottom: 8, overflow: "hidden" }}>
-              {suggestions.slice(0, 4).map(s => (
-                <button key={s.id} onClick={() => { setText(s.name); setSuggestions([]); inputRef.current?.focus(); }}
-                  style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: PALETTE.darkBrown }}>
-                  🔍 {s.name} <span style={{ color: PALETTE.warmGray, fontSize: 11 }}>({s.count}x)</span>
+          {sugg.length > 0 && (
+            <div style={{ background:P.roseLight, borderRadius:12, marginBottom:8 }}>
+              {sugg.slice(0,4).map(s=>(
+                <button key={s.id} onClick={()=>{ setText(s.name); setSugg([]); inputRef.current?.focus(); }}
+                  style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 12px", background:"none", border:"none", cursor:"pointer", fontSize:13, color:P.dark }}>
+                  🔍 {s.name} <span style={{ color:P.gray, fontSize:11 }}>({s.count}x)</span>
                 </button>
               ))}
             </div>
           )}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {["none","daily","weekly","monthly"].map(r => (
-              <button key={r} onClick={() => setRecurrence(r)} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 500, border: "none", cursor: "pointer", background: recurrence === r ? PALETTE.rose : PALETTE.roseLight, color: recurrence === r ? "#fff" : PALETTE.warmGray }}>
-                {r === "none" ? "Una volta" : r === "daily" ? "Giornaliero" : r === "weekly" ? "Settimanale" : "Mensile"}
-              </button>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+            {["none","daily","weekly","monthly"].map(r=>(
+              <button key={r} onClick={()=>setRec(r)} style={{ padding:"4px 10px", borderRadius:20, fontSize:11, fontWeight:500, border:"none", cursor:"pointer", background:rec===r?P.rose:P.roseLight, color:rec===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
             ))}
-            <button onClick={addItem} style={{ marginLeft: "auto", padding: "4px 16px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${PALETTE.rose}, ${PALETTE.roseDark})`, color: "#fff" }}>+ Aggiungi</button>
+            <button onClick={addItem} style={{ marginLeft:"auto", padding:"5px 18px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:`linear-gradient(135deg,${P.rose},${P.roseDark})`, color:"#fff" }}>+ Aggiungi</button>
           </div>
         </div>
-
-        {/* Articoli salvati */}
-        {savedArticles.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: PALETTE.warmGray, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Articoli frequenti</p>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {savedArticles.slice(0, 8).map(a => (
-                <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 4, background: PALETTE.roseLight, borderRadius: 20, padding: "4px 10px" }}>
-                  <button onClick={() => { setText(a.name); inputRef.current?.focus(); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, color: PALETTE.darkBrown }}>{a.name}</button>
-                  <button onClick={() => deleteSaved(a.id)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 10, color: PALETTE.rose }}>✕</button>
+        {saved.length > 0 && (
+          <div style={{ marginBottom:12 }}>
+            <p style={{ fontSize:11, fontWeight:600, color:P.gray, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Articoli frequenti</p>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {saved.slice(0,8).map(a=>(
+                <div key={a.id} style={{ display:"flex", alignItems:"center", gap:4, background:P.roseLight, borderRadius:20, padding:"4px 10px" }}>
+                  <button onClick={()=>{ setText(a.name); inputRef.current?.focus(); }} style={{ border:"none", background:"none", cursor:"pointer", fontSize:12, color:P.dark }}>{a.name}</button>
+                  <button onClick={()=>deleteSaved(a.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:10, color:P.rose }}>✕</button>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Lista */}
-        {unchecked.length === 0 && checked.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: PALETTE.warmGray }}>
-            <div style={{ fontSize: 48, marginBottom: 8 }}>🛒</div>
-            <p style={{ fontSize: 14 }}>La lista è vuota!<br />Aggiungi il primo prodotto ✨</p>
+        {unchecked.length===0&&checked.length===0 && (
+          <div style={{ textAlign:"center", padding:"40px 0", color:P.gray }}>
+            <div style={{ fontSize:48, marginBottom:8 }}>🛒</div>
+            <p style={{ fontSize:14 }}>La lista è vuota!<br/>Aggiungi il primo prodotto ✨</p>
           </div>
         )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {unchecked.map(item => (
-            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 16, padding: "12px 16px", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", border: `1.5px solid ${PALETTE.roseLight}` }}>
-              <button onClick={() => toggleItem(item)} style={{ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${PALETTE.rose}`, background: "none", cursor: "pointer", flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 14, fontWeight: 500, color: PALETTE.darkBrown, margin: 0 }}>{item.text}</p>
-                <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
-                  {item.qty && <span style={{ fontSize: 11, color: PALETTE.warmGray }}>{item.qty}</span>}
-                  {item.recurrence !== "none" && <span style={{ fontSize: 11, color: PALETTE.roseDark }}>🔁 {item.recurrence === "daily" ? "giornaliero" : item.recurrence === "weekly" ? "settimanale" : "mensile"}</span>}
-                </div>
-              </div>
-              <button onClick={() => deleteItem(item.id)} style={{ border: "none", background: "none", cursor: "pointer", color: PALETTE.rose, fontSize: 16 }}>🗑</button>
-            </div>
-          ))}
-          {checked.length > 0 && (
-            <>
-              <p style={{ fontSize: 11, fontWeight: 600, color: PALETTE.warmGray, textTransform: "uppercase", letterSpacing: 1, margin: "8px 0 4px" }}>Nel carrello ✓</p>
-              {checked.map(item => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, background: PALETTE.roseLight, borderRadius: 16, padding: "10px 16px", opacity: 0.65 }}>
-                  <button onClick={() => toggleItem(item)} style={{ width: 24, height: 24, borderRadius: "50%", background: PALETTE.rose, border: "none", cursor: "pointer", color: "#fff", fontSize: 12, flexShrink: 0 }}>✓</button>
-                  <span style={{ flex: 1, fontSize: 14, textDecoration: "line-through", color: PALETTE.warmGray }}>{item.text}</span>
-                  <button onClick={() => deleteItem(item.id)} style={{ border: "none", background: "none", cursor: "pointer", color: PALETTE.roseDark, fontSize: 16 }}>🗑</button>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
+        {unchecked.map(item=><Row key={item.id} item={item} />)}
+        {checked.length>0 && (
+          <>
+            <p style={{ fontSize:11, fontWeight:600, color:P.gray, textTransform:"uppercase", letterSpacing:1, margin:"12px 0 6px" }}>Nel carrello ✓</p>
+            {checked.map(item=><Row key={item.id} item={item} />)}
+          </>
+        )}
       </div>
+      {editing && (
+        <Modal title="✏️ Modifica prodotto" onClose={()=>setEditing(null)}>
+          <Inp label="Nome prodotto" color={P.rose} colorLight={P.roseLight} value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} />
+          <Inp label="Quantità (es. 2 kg, 1 bottiglia...)" color={P.peach} colorLight={P.peachLight} value={editing.qty||""} onChange={e=>setEditing(p=>({...p,qty:e.target.value}))} style={{ marginTop:4 }} />
+          <Label>Ricorrenza</Label>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
+            {["none","daily","weekly","monthly"].map(r=>(
+              <button key={r} onClick={()=>setEditing(p=>({...p,recurrence:r}))} style={{ padding:"5px 12px", borderRadius:20, fontSize:12, border:"none", cursor:"pointer", background:(editing.recurrence||"none")===r?P.rose:P.roseLight, color:(editing.recurrence||"none")===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.roseLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
+            <button onClick={saveEdit} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.rose},${P.roseDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-// ── TODO ─────────────────────────────────────────────────────────────────────
 function TodoList({ db, user }) {
   const [items, setItems] = useState([]);
   const [text, setText] = useState("");
   const [date, setDate] = useState("");
-  const [recurrence, setRecurrence] = useState("none");
+  const [rec, setRec] = useState("none");
   const [filter, setFilter] = useState("open");
-  const [selected, setSelected] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   useEffect(() => {
     if (!db) return;
-    return onValue(ref(db, "todos"), snap => {
-      const d = snap.val() || {};
-      setItems(Object.entries(d).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.createdAt - a.createdAt));
-    });
+    return onValue(ref(db,"todos"), snap => { const d=snap.val()||{}; setItems(Object.entries(d).map(([id,v])=>({id,...v})).sort((a,b)=>b.createdAt-a.createdAt)); });
   }, [db]);
 
   const addItem = () => {
-    if (!text.trim() || !db) return;
-    push(ref(db, "todos"), { text: text.trim(), date: date || null, recurrence, done: false, createdAt: Date.now(), createdBy: user.name });
-    setText(""); setDate(""); setRecurrence("none");
+    if (!text.trim()||!db) return;
+    push(ref(db,"todos"),{ text:text.trim(), date:date||null, recurrence:rec, done:false, createdAt:Date.now(), createdBy:user.name });
+    setText(""); setDate(""); setRec("none");
   };
 
   const toggleItem = (item) => {
     if (!db) return;
-    const now = Date.now();
-    update(ref(db, `todos/${item.id}`), { done: !item.done, ...((!item.done) ? { completedBy: user.name, completedAt: now } : { completedBy: null, completedAt: null }) });
+    update(ref(db,`todos/${item.id}`),{ done:!item.done, ...(!item.done?{completedBy:user.name,completedAt:Date.now()}:{completedBy:null,completedAt:null}) });
   };
 
-  const deleteItem = (id) => { remove(ref(db, `todos/${id}`)); if (selected?.id === id) setSelected(null); };
+  const saveEdit = () => {
+    if (!editing||!db) return;
+    update(ref(db,`todos/${editing.id}`),{ text:editing.text, date:editing.date||null, recurrence:editing.recurrence||"none" });
+    setEditing(null);
+  };
 
-  const filtered = items.filter(i => filter === "open" ? !i.done : i.done);
+  const deleteItem = (id) => { remove(ref(db,`todos/${id}`)); if(editing?.id===id) setEditing(null); };
+  const filtered = items.filter(i=>filter==="open"?!i.done:i.done);
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", paddingBottom: 100 }}>
-      <div style={{ padding: "16px 16px 0" }}>
-        {/* Input */}
-        <div style={{ background: "#fff", borderRadius: 20, padding: 16, boxShadow: "0 2px 12px rgba(196,181,232,0.2)", border: `1.5px solid ${PALETTE.lavenderLight}`, marginBottom: 12 }}>
-          <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem()}
-            placeholder="Nuova attività..." style={{ width: "100%", border: `1.5px solid ${PALETTE.lavender}`, borderRadius: 12, padding: "8px 12px", fontSize: 14, outline: "none", background: PALETTE.lavenderLight, color: PALETTE.darkBrown, boxSizing: "border-box", marginBottom: 8 }} />
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ flex: 1, border: `1.5px solid ${PALETTE.lavender}`, borderRadius: 12, padding: "6px 10px", fontSize: 13, outline: "none", background: PALETTE.lavenderLight, color: PALETTE.darkBrown }} />
+    <div style={{ flex:1, overflowY:"auto", paddingBottom:100 }}>
+      <div style={{ padding:"16px 16px 0" }}>
+        <div style={{ background:"#fff", borderRadius:20, padding:16, border:`1.5px solid ${P.lavLight}`, marginBottom:12 }}>
+          <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()}
+            placeholder="Nome attività..." style={{ width:"100%", border:`1.5px solid ${P.lav}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.lavLight, color:P.dark, boxSizing:"border-box", marginBottom:8 }} />
+          <div style={{ marginBottom:8 }}>
+            <Label>Data scadenza (opzionale)</Label>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{ width:"100%", border:`1.5px solid ${P.lav}`, borderRadius:12, padding:"7px 12px", fontSize:14, outline:"none", background:P.lavLight, color:P.dark, boxSizing:"border-box" }} />
           </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {["none","daily","weekly","monthly"].map(r => (
-              <button key={r} onClick={() => setRecurrence(r)} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 500, border: "none", cursor: "pointer", background: recurrence === r ? PALETTE.lavender : PALETTE.lavenderLight, color: recurrence === r ? "#fff" : PALETTE.warmGray }}>
-                {r === "none" ? "Una volta" : r === "daily" ? "Giornaliero" : r === "weekly" ? "Settimanale" : "Mensile"}
-              </button>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+            {["none","daily","weekly","monthly"].map(r=>(
+              <button key={r} onClick={()=>setRec(r)} style={{ padding:"4px 10px", borderRadius:20, fontSize:11, fontWeight:500, border:"none", cursor:"pointer", background:rec===r?P.lav:P.lavLight, color:rec===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
             ))}
-            <button onClick={addItem} style={{ marginLeft: "auto", padding: "4px 16px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${PALETTE.lavender}, ${PALETTE.lavenderDark})`, color: "#fff" }}>+ Aggiungi</button>
+            <button onClick={addItem} style={{ marginLeft:"auto", padding:"5px 18px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:`linear-gradient(135deg,${P.lav},${P.lavDark})`, color:"#fff" }}>+ Aggiungi</button>
           </div>
         </div>
-
-        {/* Filtro */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {["open","done"].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: "8px 0", borderRadius: 12, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", background: filter === f ? PALETTE.lavender : PALETTE.lavenderLight, color: filter === f ? "#fff" : PALETTE.warmGray }}>
-              {f === "open" ? `📋 Aperte (${items.filter(i => !i.done).length})` : `✅ Chiuse (${items.filter(i => i.done).length})`}
+        <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+          {["open","done"].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{ flex:1, padding:"8px 0", borderRadius:12, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:filter===f?P.lav:P.lavLight, color:filter===f?"#fff":P.gray }}>
+              {f==="open"?`📋 Aperte (${items.filter(i=>!i.done).length})`:`✅ Chiuse (${items.filter(i=>i.done).length})`}
             </button>
           ))}
         </div>
-
-        {/* Lista */}
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: PALETTE.warmGray }}>
-            <div style={{ fontSize: 48, marginBottom: 8 }}>{filter === "open" ? "✅" : "📋"}</div>
-            <p style={{ fontSize: 14 }}>Nessuna attività {filter === "open" ? "aperta" : "chiusa"}!</p>
+        {filtered.length===0 && (
+          <div style={{ textAlign:"center", padding:"40px 0", color:P.gray }}>
+            <div style={{ fontSize:48, marginBottom:8 }}>{filter==="open"?"✅":"📋"}</div>
+            <p style={{ fontSize:14 }}>Nessuna attività {filter==="open"?"aperta":"chiusa"}!</p>
           </div>
         )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {filtered.map(item => (
-            <div key={item.id}>
-              <div onClick={() => setSelected(selected?.id === item.id ? null : item)}
-                style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 16, padding: "12px 16px", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", border: `1.5px solid ${item.done ? PALETTE.lavenderLight : PALETTE.lavenderLight}`, cursor: "pointer", opacity: item.done ? 0.7 : 1 }}>
-                <button onClick={e => { e.stopPropagation(); toggleItem(item); }} style={{ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${PALETTE.lavender}`, background: item.done ? PALETTE.lavender : "none", cursor: "pointer", flexShrink: 0, color: "#fff", fontSize: 12 }}>
-                  {item.done ? "✓" : ""}
-                </button>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 14, fontWeight: 500, color: PALETTE.darkBrown, margin: 0, textDecoration: item.done ? "line-through" : "none" }}>{item.text}</p>
-                  <div style={{ display: "flex", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 11, color: PALETTE.warmGray }}>Aggiunto {formatDate(item.createdAt)}</span>
-                    {item.date && <span style={{ fontSize: 11, color: PALETTE.lavenderDark }}>📅 Scadenza: {formatDate(item.date + "T00:00:00")}</span>}
-                    {item.recurrence !== "none" && <span style={{ fontSize: 11, color: PALETTE.lavenderDark }}>🔁</span>}
-                  </div>
+        {filtered.map(item=>(
+          <div key={item.id} style={{ background:"#fff", borderRadius:16, padding:"12px 14px", marginBottom:8, border:`1.5px solid ${P.lavLight}`, opacity:item.done?0.75:1 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <button onClick={()=>toggleItem(item)} style={{ width:24, height:24, borderRadius:"50%", border:`2px solid ${P.lav}`, background:item.done?P.lav:"none", cursor:"pointer", flexShrink:0, color:"#fff", fontSize:12 }}>{item.done?"✓":""}</button>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontSize:14, fontWeight:500, color:P.dark, margin:0, textDecoration:item.done?"line-through":"none" }}>{item.text}</p>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:2 }}>
+                  <span style={{ fontSize:11, color:P.gray }}>Aggiunta {fmtDate(item.createdAt)} da {item.createdBy||"?"}</span>
+                  {item.date && <span style={{ fontSize:11, color:P.lavDark }}>📅 {fmtDate(item.date+"T00:00:00")}</span>}
+                  {item.recurrence&&item.recurrence!=="none" && <span style={{ fontSize:11, color:P.lavDark }}>🔁 {REC_LABELS[item.recurrence]}</span>}
                 </div>
-                <button onClick={e => { e.stopPropagation(); deleteItem(item.id); }} style={{ border: "none", background: "none", cursor: "pointer", color: PALETTE.lavender, fontSize: 16 }}>🗑</button>
+                {item.done&&item.completedBy && (
+                  <p style={{ fontSize:11, color:P.lavDark, margin:"2px 0 0" }}>✅ Completata da <strong>{item.completedBy}</strong> il {fmtDate(item.completedAt)} alle {fmtTime(item.completedAt)}</p>
+                )}
               </div>
-              {selected?.id === item.id && item.done && (
-                <div style={{ background: PALETTE.lavenderLight, borderRadius: "0 0 16px 16px", padding: "10px 16px", marginTop: -8, fontSize: 12, color: PALETTE.warmGray }}>
-                  {item.completedBy && <p style={{ margin: "2px 0" }}>✅ Completata da <strong>{item.completedBy}</strong></p>}
-                  {item.completedAt && <p style={{ margin: "2px 0" }}>🕐 Il {formatDate(item.completedAt)} alle {formatTime(item.completedAt)}</p>}
-                  <p style={{ margin: "2px 0" }}>➕ Aggiunta da <strong>{item.createdBy || "?"}</strong> il {formatDate(item.createdAt)}</p>
-                </div>
-              )}
+              <button onClick={()=>setEditing({...item})} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>✏️</button>
+              <button onClick={()=>deleteItem(item.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>🗑</button>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
+      {editing && (
+        <Modal title="✏️ Modifica attività" onClose={()=>setEditing(null)}>
+          <Inp label="Nome attività" color={P.lav} colorLight={P.lavLight} value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} />
+          <Label>Data scadenza</Label>
+          <input type="date" value={editing.date||""} onChange={e=>setEditing(p=>({...p,date:e.target.value}))}
+            style={{ width:"100%", border:`1.5px solid ${P.lav}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.lavLight, color:P.dark, boxSizing:"border-box" }} />
+          <Label>Ricorrenza</Label>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
+            {["none","daily","weekly","monthly"].map(r=>(
+              <button key={r} onClick={()=>setEditing(p=>({...p,recurrence:r}))} style={{ padding:"5px 12px", borderRadius:20, fontSize:12, border:"none", cursor:"pointer", background:(editing.recurrence||"none")===r?P.lav:P.lavLight, color:(editing.recurrence||"none")===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
+            ))}
+          </div>
+          {editing.done&&editing.completedBy && (
+            <div style={{ background:P.lavLight, borderRadius:12, padding:"10px 14px", marginBottom:16 }}>
+              <p style={{ fontSize:12, color:P.gray, margin:0 }}>✅ Completata da <strong>{editing.completedBy}</strong></p>
+              <p style={{ fontSize:12, color:P.gray, margin:"2px 0 0" }}>🕐 {fmtDate(editing.completedAt)} alle {fmtTime(editing.completedAt)}</p>
+            </div>
+          )}
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.lavLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
+            <button onClick={saveEdit} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.lav},${P.lavDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-// ── CALENDAR ─────────────────────────────────────────────────────────────────
 function CalendarView({ db, user, users }) {
   const [events, setEvents] = useState([]);
   const [templates, setTemplates] = useState([]);
-  const [view, setView] = useState("month"); // month | week | day
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [calFilter, setCalFilter] = useState("shared"); // shared | mine
+  const [view, setView] = useState("month");
+  const [curDate, setCurDate] = useState(new Date());
+  const [calFilter, setCalFilter] = useState("shared");
   const [showAdd, setShowAdd] = useState(false);
-  const [showTemplateManager, setShowTemplateManager] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [newEvent, setNewEvent] = useState({ text: "", date: "", timeFrom: "", timeTo: "", recurrence: "none", isShared: true });
-  const [newTemplate, setNewTemplate] = useState({ name: "", timeFrom: "", timeTo: "" });
+  const [showTpl, setShowTpl] = useState(false);
+  const [selDay, setSelDay] = useState(null);
+  const [editEvent, setEditEvent] = useState(null);
+  const [newEv, setNewEv] = useState({ text:"", date:"", timeFrom:"", timeTo:"", duration:"", recurrence:"none", isShared:true });
+  const [newTpl, setNewTpl] = useState({ name:"", timeFrom:"", timeTo:"", duration:"" });
 
   useEffect(() => {
     if (!db) return;
-    const u1 = onValue(ref(db, "calendarEvents"), snap => {
-      const d = snap.val() || {};
-      setEvents(Object.entries(d).map(([id, v]) => ({ id, ...v })));
-    });
-    const u2 = onValue(ref(db, `templates/${user.name}`), snap => {
-      const d = snap.val() || {};
-      setTemplates(Object.entries(d).map(([id, v]) => ({ id, ...v })));
-    });
-    return () => { u1(); u2(); };
+    const u1 = onValue(ref(db,"calendarEvents"), snap=>{ const d=snap.val()||{}; setEvents(Object.entries(d).map(([id,v])=>({id,...v}))); });
+    const u2 = onValue(ref(db,`templates/${user.name}`), snap=>{ const d=snap.val()||{}; setTemplates(Object.entries(d).map(([id,v])=>({id,...v}))); });
+    return ()=>{ u1(); u2(); };
   }, [db, user]);
 
   const addEvent = () => {
-    if (!newEvent.text.trim() || !newEvent.date || !db) return;
-    push(ref(db, "calendarEvents"), { ...newEvent, owner: user.name, ownerColor: user.color, createdAt: Date.now() });
-    setNewEvent({ text: "", date: "", timeFrom: "", timeTo: "", recurrence: "none", isShared: true });
+    if (!newEv.text.trim()||!newEv.date||!db) return;
+    push(ref(db,"calendarEvents"),{ ...newEv, owner:user.name, ownerColor:user.color, createdAt:Date.now() });
+    setNewEv({ text:"", date:"", timeFrom:"", timeTo:"", duration:"", recurrence:"none", isShared:true });
     setShowAdd(false);
   };
 
   const addTemplate = () => {
-    if (!newTemplate.name.trim() || !db) return;
-    push(ref(db, `templates/${user.name}`), { ...newTemplate });
-    setNewTemplate({ name: "", timeFrom: "", timeTo: "" });
+    if (!newTpl.name.trim()||!db) return;
+    push(ref(db,`templates/${user.name}`),{ ...newTpl });
+    setNewTpl({ name:"", timeFrom:"", timeTo:"", duration:"" });
   };
 
-  const deleteEvent = (id) => remove(ref(db, `calendarEvents/${id}`));
-  const deleteTemplate = (id) => remove(ref(db, `templates/${user.name}/${id}`));
+  const deleteEvent = (id) => { remove(ref(db,`calendarEvents/${id}`)); if(editEvent?.id===id) setEditEvent(null); };
+  const deleteTemplate = (id) => remove(ref(db,`templates/${user.name}/${id}`));
+  const applyTemplate = (t) => { setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||""})); setShowAdd(true); };
+  const getUserColor = (ownerName) => { const u=Object.values(users||{}).find(u=>u.name===ownerName); return u?.color||P.mint; };
 
-  const applyTemplate = (t) => {
-    setNewEvent(prev => ({ ...prev, text: t.name, timeFrom: t.timeFrom, timeTo: t.timeTo }));
-    setShowAdd(true);
-  };
+  const visibleEvents = events.filter(ev=>calFilter==="mine"?ev.owner===user.name:(ev.isShared||ev.owner===user.name));
 
-  // Filter events
-  const visibleEvents = events.filter(ev => {
-    if (calFilter === "mine") return ev.owner === user.name;
-    return ev.isShared || ev.owner === user.name;
-  });
-
-  // Expand recurring events for a given month
-  const expandEvents = (year, month) => {
-    const result = [];
-    visibleEvents.forEach(ev => {
+  const expandForMonth = (year, month) => {
+    const result=[]; const dim=new Date(year,month+1,0).getDate();
+    visibleEvents.forEach(ev=>{
       if (!ev.date) return;
-      const evDate = new Date(ev.date);
-      const add = (d) => result.push({ ...ev, displayDate: new Date(d) });
-      if (!ev.recurrence || ev.recurrence === "none") {
-        if (evDate.getFullYear() === year && evDate.getMonth() === month) add(evDate);
-      } else if (ev.recurrence === "monthly") {
-        add(new Date(year, month, evDate.getDate()));
-      } else if (ev.recurrence === "weekly") {
-        for (let d = 1; d <= new Date(year, month + 1, 0).getDate(); d++) {
-          const dt = new Date(year, month, d);
-          if (dt.getDay() === evDate.getDay()) add(dt);
-        }
-      } else if (ev.recurrence === "daily") {
-        for (let d = 1; d <= new Date(year, month + 1, 0).getDate(); d++) add(new Date(year, month, d));
-      }
+      const evDate=new Date(ev.date);
+      const add=(d)=>result.push({...ev,displayDate:new Date(d)});
+      if (!ev.recurrence||ev.recurrence==="none") { if(evDate.getFullYear()===year&&evDate.getMonth()===month) add(evDate); }
+      else if (ev.recurrence==="monthly") { add(new Date(year,month,evDate.getDate())); }
+      else if (ev.recurrence==="weekly") { for(let d=1;d<=dim;d++){ const dt=new Date(year,month,d); if(dt.getDay()===evDate.getDay()) add(dt); } }
+      else if (ev.recurrence==="daily") { for(let d=1;d<=dim;d++) add(new Date(year,month,d)); }
     });
     return result;
   };
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const monthEvents = expandEvents(year, month);
-  const getEventsForDay = (d) => monthEvents.filter(ev => isSameDay(ev.displayDate, d));
+  const year=curDate.getFullYear(), month=curDate.getMonth();
+  const monthEvs=expandForMonth(year,month);
+  const getEvForDay=(d)=>monthEvs.filter(ev=>isSameDay(ev.displayDate,d));
+  const today=new Date();
 
-  // Week view helpers
-  const getWeekDays = () => {
-    const d = new Date(currentDate);
-    const day = d.getDay();
-    d.setDate(d.getDate() - day);
-    return Array.from({ length: 7 }, (_, i) => { const dd = new Date(d); dd.setDate(d.getDate() + i); return dd; });
-  };
+  const navigate=(dir)=>{ const d=new Date(curDate); if(view==="month") d.setMonth(d.getMonth()+dir); else if(view==="week") d.setDate(d.getDate()+dir*7); else d.setDate(d.getDate()+dir); setCurDate(d); };
+  const getWeekDays=()=>{ const d=new Date(curDate); d.setDate(d.getDate()-d.getDay()); return Array.from({length:7},(_,i)=>{ const dd=new Date(d); dd.setDate(d.getDate()+i); return dd; }); };
+  const headerLabel=()=>{ if(view==="month") return `${MONTHS[month]} ${year}`; if(view==="week"){ const w=getWeekDays(); return `${w[0].getDate()} - ${w[6].getDate()} ${MONTHS[w[6].getMonth()]}`; } return `${curDate.getDate()} ${MONTHS[curDate.getMonth()]}`; };
 
-  const navigate = (dir) => {
-    const d = new Date(currentDate);
-    if (view === "month") d.setMonth(d.getMonth() + dir);
-    else if (view === "week") d.setDate(d.getDate() + dir * 7);
-    else d.setDate(d.getDate() + dir);
-    setCurrentDate(d);
-  };
+  const TimeInputRow = ({ label, from, to, onFrom, onTo }) => (
+    <div>
+      <Label>{label}</Label>
+      <div style={{ display:"flex", gap:8 }}>
+        <div style={{ flex:1 }}>
+          <p style={{ fontSize:11, color:P.gray, margin:"0 0 4px" }}>Orario Da</p>
+          <input type="time" value={from} onChange={onFrom} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 10px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
+        </div>
+        <div style={{ flex:1 }}>
+          <p style={{ fontSize:11, color:P.gray, margin:"0 0 4px" }}>Orario A</p>
+          <input type="time" value={to} onChange={onTo} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 10px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
+        </div>
+      </div>
+    </div>
+  );
 
-  const headerLabel = () => {
-    if (view === "month") return `${MONTHS[month]} ${year}`;
-    if (view === "week") { const w = getWeekDays(); return `${w[0].getDate()} - ${w[6].getDate()} ${MONTHS[w[6].getMonth()]}`; }
-    return `${currentDate.getDate()} ${MONTHS[currentDate.getMonth()]}`;
-  };
-
-  const today = new Date();
-  const HOURS = Array.from({ length: 24 }, (_, i) => i);
-
-  const getUserColor = (ownerName) => {
-    const u = Object.values(users || {}).find(u => u.name === ownerName);
-    return u?.color || PALETTE.mint;
+  const EventEditModal = ({ ev, onClose }) => {
+    const [e, setE] = useState({...ev});
+    const save = () => { update(ref(db,`calendarEvents/${e.id}`),{ text:e.text, date:e.date, timeFrom:e.timeFrom, timeTo:e.timeTo, duration:e.duration, recurrence:e.recurrence, isShared:e.isShared }); onClose(); };
+    return (
+      <Modal title="✏️ Modifica evento" onClose={onClose}>
+        <Inp label="Nome evento" value={e.text} onChange={ev2=>setE(p=>({...p,text:ev2.target.value}))} />
+        <Label>Data</Label>
+        <input type="date" value={e.date||""} onChange={ev2=>setE(p=>({...p,date:ev2.target.value}))} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
+        <TimeInputRow label="Orario fisso (lascia vuoto per tutto il giorno)" from={e.timeFrom||""} to={e.timeTo||""} onFrom={ev2=>setE(p=>({...p,timeFrom:ev2.target.value}))} onTo={ev2=>setE(p=>({...p,timeTo:ev2.target.value}))} />
+        <Inp label="Durata (es. 1 ora, 30 min) — alternativa agli orari fissi" value={e.duration||""} onChange={ev2=>setE(p=>({...p,duration:ev2.target.value}))} style={{ marginTop:4 }} />
+        <Label>Ricorrenza</Label>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+          {["none","daily","weekly","monthly"].map(r=>(
+            <button key={r} onClick={()=>setE(p=>({...p,recurrence:r}))} style={{ padding:"5px 10px", borderRadius:20, fontSize:11, border:"none", cursor:"pointer", background:(e.recurrence||"none")===r?P.mint:P.mintLight, color:(e.recurrence||"none")===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
+          ))}
+        </div>
+        <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+          <button onClick={()=>setE(p=>({...p,isShared:true}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:e.isShared?P.mint:P.mintLight, color:e.isShared?"#fff":P.gray }}>🌸 Condiviso</button>
+          <button onClick={()=>setE(p=>({...p,isShared:false}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:!e.isShared?P.mint:P.mintLight, color:!e.isShared?"#fff":P.gray }}>👤 Solo mio</button>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={()=>{ deleteEvent(ev.id); onClose(); }} style={{ padding:"10px 14px", borderRadius:20, border:"none", background:"#FFE8E8", color:"#C0392B", cursor:"pointer", fontSize:13 }}>🗑 Elimina</button>
+          <button onClick={onClose} style={{ flex:1, padding:"10px 0", borderRadius:20, border:"none", background:P.mintLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
+          <button onClick={save} style={{ flex:1, padding:"10px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
+        </div>
+      </Modal>
+    );
   };
 
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Header controls */}
-      <div style={{ padding: "12px 16px 0", background: "#fff", borderBottom: `1px solid ${PALETTE.roseLight}` }}>
-        {/* View switcher */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          {["month","week","day"].map(v => (
-            <button key={v} onClick={() => setView(v)} style={{ flex: 1, padding: "6px 0", borderRadius: 12, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: view === v ? PALETTE.mint : PALETTE.mintLight, color: view === v ? "#fff" : PALETTE.warmGray }}>
-              {v === "month" ? "Mese" : v === "week" ? "Settimana" : "Giorno"}
+    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+      <div style={{ padding:"10px 14px 0", background:"#fff", borderBottom:`1px solid ${P.roseLight}` }}>
+        <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+          {["month","week","day"].map(v=>(
+            <button key={v} onClick={()=>setView(v)} style={{ flex:1, padding:"6px 0", borderRadius:10, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:view===v?P.mint:P.mintLight, color:view===v?"#fff":P.gray }}>
+              {v==="month"?"Mese":v==="week"?"Settimana":"Giorno"}
             </button>
           ))}
         </div>
-        {/* Filter */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          {["shared","mine"].map(f => (
-            <button key={f} onClick={() => setCalFilter(f)} style={{ flex: 1, padding: "5px 0", borderRadius: 10, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", background: calFilter === f ? user.color : PALETTE.mintLight, color: calFilter === f ? "#fff" : PALETTE.warmGray }}>
-              {f === "shared" ? "🌸 Condiviso" : "👤 Il mio"}
-            </button>
-          ))}
+        <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+          <button onClick={()=>setCalFilter("shared")} style={{ flex:1, padding:"5px 0", borderRadius:10, fontSize:12, fontWeight:500, border:"none", cursor:"pointer", background:calFilter==="shared"?user.color:P.mintLight, color:calFilter==="shared"?"#fff":P.gray }}>🌸 Condiviso</button>
+          <button onClick={()=>setCalFilter("mine")} style={{ flex:1, padding:"5px 0", borderRadius:10, fontSize:12, fontWeight:500, border:"none", cursor:"pointer", background:calFilter==="mine"?user.color:P.mintLight, color:calFilter==="mine"?"#fff":P.gray }}>👤 Il mio</button>
         </div>
-        {/* Nav */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <button onClick={() => navigate(-1)} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: PALETTE.mintLight, cursor: "pointer", fontSize: 16 }}>‹</button>
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, fontWeight: 700, color: PALETTE.darkBrown }}>{headerLabel()}</span>
-          <button onClick={() => navigate(1)} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: PALETTE.mintLight, cursor: "pointer", fontSize: 16 }}>›</button>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+          <button onClick={()=>navigate(-1)} style={{ width:30, height:30, borderRadius:"50%", border:"none", background:P.mintLight, cursor:"pointer", fontSize:16 }}>‹</button>
+          <span style={{ fontFamily:"'Playfair Display',serif", fontSize:14, fontWeight:700, color:P.dark }}>{headerLabel()}</span>
+          <button onClick={()=>navigate(1)} style={{ width:30, height:30, borderRadius:"50%", border:"none", background:P.mintLight, cursor:"pointer", fontSize:16 }}>›</button>
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 100 }}>
-        {/* MONTH VIEW */}
-        {view === "month" && (
-          <div style={{ padding: "0 12px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginTop: 8, marginBottom: 4 }}>
-              {["D","L","M","M","G","V","S"].map((d, i) => (
-                <div key={i} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: PALETTE.warmGray, padding: "4px 0" }}>{d}</div>
+      <div style={{ flex:1, overflowY:"auto", paddingBottom:100 }}>
+        {view==="month" && (
+          <div style={{ padding:"0 10px" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", marginTop:8, marginBottom:4 }}>
+              {["D","L","M","M","G","V","S"].map((d,i)=>(
+                <div key={i} style={{ textAlign:"center", fontSize:11, fontWeight:600, color:P.gray, padding:"3px 0" }}>{d}</div>
               ))}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
-              {Array(new Date(year, month, 1).getDay()).fill(null).map((_, i) => <div key={"e"+i} />)}
-              {Array(new Date(year, month + 1, 0).getDate()).fill(null).map((_, i) => {
-                const day = i + 1;
-                const d = new Date(year, month, day);
-                const isToday = isSameDay(d, today);
-                const isSel = selectedDay && isSameDay(d, selectedDay);
-                const dayEvs = getEventsForDay(d);
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2 }}>
+              {Array(new Date(year,month,1).getDay()).fill(null).map((_,i)=><div key={"e"+i} />)}
+              {Array(new Date(year,month+1,0).getDate()).fill(null).map((_,i)=>{
+                const day=i+1, d=new Date(year,month,day);
+                const isToday=isSameDay(d,today), isSel=selDay&&isSameDay(d,selDay);
+                const dayEvs=getEvForDay(d);
                 return (
-                  <button key={day} onClick={() => setSelectedDay(isSel ? null : d)}
-                    style={{ aspectRatio: "1", borderRadius: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: isToday ? `2px solid ${PALETTE.mint}` : "2px solid transparent", background: isSel ? PALETTE.mint : "transparent", cursor: "pointer" }}>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: isSel ? "#fff" : PALETTE.darkBrown }}>{day}</span>
-                    <div style={{ display: "flex", gap: 2, marginTop: 1 }}>
-                      {dayEvs.slice(0, 3).map((ev, di) => (
-                        <div key={di} style={{ width: 5, height: 5, borderRadius: "50%", background: isSel ? "#fff" : getUserColor(ev.owner) }} />
+                  <button key={day} onClick={()=>setSelDay(isSel?null:d)}
+                    style={{ aspectRatio:"1", borderRadius:10, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:isToday?`2px solid ${P.mint}`:"2px solid transparent", background:isSel?P.mint:"transparent", cursor:"pointer" }}>
+                    <span style={{ fontSize:12, fontWeight:500, color:isSel?"#fff":P.dark }}>{day}</span>
+                    <div style={{ display:"flex", gap:2, marginTop:1 }}>
+                      {dayEvs.slice(0,3).map((ev,di)=>(
+                        <div key={di} style={{ width:5, height:5, borderRadius:"50%", background:isSel?"#fff":getUserColor(ev.owner) }} />
                       ))}
                     </div>
                   </button>
                 );
               })}
             </div>
-            {selectedDay && (
-              <div style={{ marginTop: 12 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: PALETTE.warmGray, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{selectedDay.getDate()} {MONTHS[selectedDay.getMonth()]}</p>
-                {getEventsForDay(selectedDay).length === 0 ? (
-                  <p style={{ fontSize: 13, color: PALETTE.warmGray, textAlign: "center", padding: "16px 0" }}>Nessun evento 🌸</p>
-                ) : (
-                  getEventsForDay(selectedDay).map((ev, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 14, padding: "10px 14px", marginBottom: 8, border: `1.5px solid ${PALETTE.mintLight}` }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: getUserColor(ev.owner), flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 13, fontWeight: 500, color: PALETTE.darkBrown, margin: 0 }}>{ev.text}</p>
-                        <p style={{ fontSize: 11, color: PALETTE.warmGray, margin: 0 }}>
-                          {ev.owner} {ev.timeFrom && `· ${ev.timeFrom}${ev.timeTo ? ` - ${ev.timeTo}` : ""}`}
-                        </p>
+            {selDay && (
+              <div style={{ marginTop:12 }}>
+                <p style={{ fontSize:12, fontWeight:600, color:P.gray, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>{selDay.getDate()} {MONTHS[selDay.getMonth()]}</p>
+                {getEvForDay(selDay).length===0
+                  ? <p style={{ fontSize:13, color:P.gray, textAlign:"center", padding:"16px 0" }}>Nessun evento 🌸</p>
+                  : getEvForDay(selDay).map((ev,i)=>(
+                    <div key={i} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
+                      style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:14, padding:"10px 14px", marginBottom:8, border:`1.5px solid ${P.mintLight}`, cursor:ev.owner===user.name?"pointer":"default" }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:getUserColor(ev.owner), flexShrink:0 }} />
+                      <div style={{ flex:1 }}>
+                        <p style={{ fontSize:13, fontWeight:500, color:P.dark, margin:0 }}>{ev.text}</p>
+                        <p style={{ fontSize:11, color:P.gray, margin:0 }}>{ev.owner}{ev.timeFrom?` · ${ev.timeFrom}${ev.timeTo?` - ${ev.timeTo}`:""}`:""}
+                          {ev.duration?` · ⏱ ${ev.duration}`:""}</p>
                       </div>
-                      {ev.owner === user.name && <button onClick={() => deleteEvent(ev.id)} style={{ border: "none", background: "none", cursor: "pointer", color: PALETTE.mint, fontSize: 14 }}>🗑</button>}
+                      {ev.owner===user.name && <span style={{ fontSize:14 }}>✏️</span>}
                     </div>
                   ))
-                )}
+                }
               </div>
             )}
           </div>
         )}
 
-        {/* WEEK VIEW */}
-        {view === "week" && (
-          <div style={{ padding: "0 8px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "40px repeat(7,1fr)", gap: 2, marginTop: 8 }}>
-              <div />
-              {getWeekDays().map((d, i) => (
-                <div key={i} style={{ textAlign: "center", padding: "4px 0" }}>
-                  <p style={{ fontSize: 10, color: PALETTE.warmGray, margin: 0 }}>{DAYS_SHORT[d.getDay()]}</p>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: isSameDay(d, today) ? PALETTE.mint : "transparent", display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 0" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: isSameDay(d, today) ? "#fff" : PALETTE.darkBrown }}>{d.getDate()}</span>
+        {view==="week" && (()=>{
+          const weekDays=getWeekDays();
+          const allWE=weekDays.map(d=>expandForMonth(d.getFullYear(),d.getMonth()).filter(ev=>isSameDay(ev.displayDate,d)));
+          return (
+            <div style={{ padding:"0 4px" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"36px repeat(7,1fr)", gap:1, marginTop:6 }}>
+                <div />
+                {weekDays.map((d,i)=>(
+                  <div key={i} style={{ textAlign:"center", paddingBottom:4 }}>
+                    <p style={{ fontSize:10, color:P.gray, margin:0 }}>{DAYS_SHORT[d.getDay()]}</p>
+                    <div style={{ width:26, height:26, borderRadius:"50%", background:isSameDay(d,today)?P.mint:"transparent", display:"flex", alignItems:"center", justifyContent:"center", margin:"2px auto 0" }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:isSameDay(d,today)?"#fff":P.dark }}>{d.getDate()}</span>
+                    </div>
                   </div>
+                ))}
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"36px repeat(7,1fr)", gap:1 }}>
+                {Array.from({length:24},(_,h)=>(
+                  [
+                    <div key={"h"+h} style={{ fontSize:9, color:P.gray, paddingTop:2, textAlign:"right", paddingRight:3, height:PX_PER_HOUR }}>{h}:00</div>,
+                    ...weekDays.map((d,di)=>{
+                      const dayEvs=allWE[di].filter(ev=>ev.timeFrom&&Math.floor(timeToMin(ev.timeFrom)/60)===h);
+                      return (
+                        <div key={"c"+h+di} style={{ height:PX_PER_HOUR, borderTop:`1px solid ${P.mintLight}`, position:"relative" }}>
+                          {dayEvs.map((ev,ei)=>{
+                            const fromMin=timeToMin(ev.timeFrom)%60;
+                            const durMin=ev.timeTo?timeToMin(ev.timeTo)-timeToMin(ev.timeFrom):60;
+                            const top=(fromMin/60)*PX_PER_HOUR;
+                            const height=Math.max((durMin/60)*PX_PER_HOUR,16);
+                            return (
+                              <div key={ei} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
+                                style={{ position:"absolute", top, left:1, right:1, height, background:getUserColor(ev.owner), borderRadius:4, padding:"1px 3px", fontSize:8, color:"#fff", overflow:"hidden", cursor:ev.owner===user.name?"pointer":"default", zIndex:2 }}>
+                                {ev.text}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })
+                  ]
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {view==="day" && (()=>{
+          const dayEvs=expandForMonth(curDate.getFullYear(),curDate.getMonth()).filter(ev=>isSameDay(ev.displayDate,curDate));
+          const timedEvs=dayEvs.filter(ev=>ev.timeFrom);
+          const allDayEvs=dayEvs.filter(ev=>!ev.timeFrom);
+          return (
+            <div style={{ padding:"0 12px" }}>
+              {allDayEvs.map((ev,i)=>(
+                <div key={"a"+i} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
+                  style={{ background:getUserColor(ev.owner), borderRadius:10, padding:"8px 12px", marginTop:8, marginBottom:4, cursor:ev.owner===user.name?"pointer":"default" }}>
+                  <p style={{ fontSize:13, fontWeight:600, color:"#fff", margin:0 }}>{ev.text}</p>
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.85)", margin:0 }}>{ev.owner}{ev.duration?` · ⏱ ${ev.duration}`:""}</p>
                 </div>
               ))}
-              {HOURS.map(h => (
-                <>
-                  <div key={"h"+h} style={{ fontSize: 10, color: PALETTE.warmGray, paddingTop: 4, textAlign: "right", paddingRight: 4 }}>{h}:00</div>
-                  {getWeekDays().map((d, di) => {
-                    const dayEvs = expandEvents(d.getFullYear(), d.getMonth()).filter(ev => isSameDay(ev.displayDate, d) && ev.timeFrom && parseInt(ev.timeFrom) === h);
+              <div style={{ position:"relative", marginTop:8 }}>
+                {Array.from({length:24},(_,h)=>(
+                  <div key={h} style={{ display:"flex", gap:8, height:PX_PER_HOUR, borderTop:`1px solid ${P.mintLight}` }}>
+                    <span style={{ width:40, fontSize:11, color:P.gray, paddingTop:4, flexShrink:0 }}>{h}:00</span>
+                  </div>
+                ))}
+                <div style={{ position:"absolute", top:0, left:48, right:0 }}>
+                  {timedEvs.map((ev,i)=>{
+                    const fromMin=timeToMin(ev.timeFrom);
+                    const toMin=ev.timeTo?timeToMin(ev.timeTo):fromMin+60;
+                    const top=(fromMin/60)*PX_PER_HOUR;
+                    const height=Math.max(((toMin-fromMin)/60)*PX_PER_HOUR,28);
                     return (
-                      <div key={"c"+h+di} style={{ minHeight: 32, borderTop: `1px solid ${PALETTE.mintLight}`, position: "relative" }}>
-                        {dayEvs.map((ev, ei) => (
-                          <div key={ei} style={{ background: getUserColor(ev.owner), borderRadius: 6, padding: "2px 4px", fontSize: 9, color: "#fff", marginTop: 1, opacity: 0.9 }}>{ev.text}</div>
-                        ))}
+                      <div key={i} onClick={()=>ev.owner===user.name&&setEditEvent(ev)}
+                        style={{ position:"absolute", top, left:0, right:0, height, background:getUserColor(ev.owner), borderRadius:10, padding:"5px 10px", opacity:0.93, cursor:ev.owner===user.name?"pointer":"default" }}>
+                        <p style={{ fontSize:13, fontWeight:600, color:"#fff", margin:0 }}>{ev.text}</p>
+                        <p style={{ fontSize:11, color:"rgba(255,255,255,0.85)", margin:0 }}>{ev.owner} · {ev.timeFrom}{ev.timeTo?` - ${ev.timeTo}`:""}{ev.duration?` · ${ev.duration}`:""}</p>
                       </div>
                     );
                   })}
-                </>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* DAY VIEW */}
-        {view === "day" && (
-          <div style={{ padding: "0 16px" }}>
-            <div style={{ marginTop: 8 }}>
-              {HOURS.map(h => {
-                const dayEvs = expandEvents(currentDate.getFullYear(), currentDate.getMonth()).filter(ev => isSameDay(ev.displayDate, currentDate) && ev.timeFrom && parseInt(ev.timeFrom) === h);
-                return (
-                  <div key={h} style={{ display: "flex", gap: 8, minHeight: 48, borderTop: `1px solid ${PALETTE.mintLight}` }}>
-                    <span style={{ width: 40, fontSize: 11, color: PALETTE.warmGray, paddingTop: 4, flexShrink: 0 }}>{h}:00</span>
-                    <div style={{ flex: 1, paddingTop: 4 }}>
-                      {dayEvs.map((ev, i) => (
-                        <div key={i} style={{ background: getUserColor(ev.owner), borderRadius: 10, padding: "6px 10px", marginBottom: 4, opacity: 0.9 }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: "#fff", margin: 0 }}>{ev.text}</p>
-                          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.85)", margin: 0 }}>{ev.owner} · {ev.timeFrom}{ev.timeTo ? ` - ${ev.timeTo}` : ""}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* FAB */}
-      <div style={{ position: "fixed", bottom: 90, right: 16, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-        <button onClick={() => setShowTemplateManager(true)} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: PALETTE.mintLight, cursor: "pointer", fontSize: 18, boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>📋</button>
-        <button onClick={() => setShowAdd(true)} style={{ width: 52, height: 52, borderRadius: "50%", border: "none", background: `linear-gradient(135deg, ${PALETTE.mint}, ${PALETTE.mintDark})`, cursor: "pointer", fontSize: 22, color: "#fff", boxShadow: "0 4px 12px rgba(91,191,160,0.4)" }}>+</button>
-      </div>
-
-      {/* Add Event Modal */}
-      {showAdd && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 16, background: "rgba(61,43,43,0.4)", backdropFilter: "blur(4px)" }}>
-          <div style={{ width: "100%", maxWidth: 430, background: PALETTE.cream, borderRadius: 28, padding: 24 }}>
-            <h3 style={{ fontFamily: "'Playfair Display', serif", color: PALETTE.darkBrown, fontSize: 18, marginBottom: 16 }}>📅 Nuovo evento</h3>
-            {templates.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <p style={{ fontSize: 11, color: PALETTE.warmGray, marginBottom: 6 }}>I tuoi template:</p>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {templates.map(t => (
-                    <button key={t.id} onClick={() => applyTemplate(t)} style={{ padding: "4px 10px", borderRadius: 16, fontSize: 11, border: `1px solid ${PALETTE.mint}`, background: PALETTE.mintLight, cursor: "pointer", color: PALETTE.darkBrown }}>
-                      {t.name} {t.timeFrom && `(${t.timeFrom}${t.timeTo ? `-${t.timeTo}` : ""})`}
-                    </button>
-                  ))}
                 </div>
               </div>
-            )}
-            {[
-              { placeholder: "Nome evento", key: "text", type: "text" },
-              { placeholder: "Data", key: "date", type: "date" },
-              { placeholder: "Dalle (es. 09:00)", key: "timeFrom", type: "time" },
-              { placeholder: "Alle (es. 17:00)", key: "timeTo", type: "time" },
-            ].map(f => (
-              <input key={f.key} type={f.type} placeholder={f.placeholder} value={newEvent[f.key]} onChange={e => setNewEvent(p => ({ ...p, [f.key]: e.target.value }))}
-                style={{ width: "100%", border: `1.5px solid ${PALETTE.mint}`, borderRadius: 12, padding: "8px 12px", fontSize: 14, outline: "none", background: PALETTE.mintLight, color: PALETTE.darkBrown, boxSizing: "border-box", marginBottom: 8 }} />
+            </div>
+          );
+        })()}
+      </div>
+
+      <div style={{ position:"fixed", bottom:90, right:16, display:"flex", flexDirection:"column", gap:8, alignItems:"flex-end" }}>
+        <button onClick={()=>setShowTpl(true)} style={{ width:44, height:44, borderRadius:"50%", border:"none", background:P.mintLight, cursor:"pointer", fontSize:18, boxShadow:"0 2px 8px rgba(0,0,0,0.12)" }}>📋</button>
+        <button onClick={()=>setShowAdd(true)} style={{ width:52, height:52, borderRadius:"50%", border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, cursor:"pointer", fontSize:22, color:"#fff", boxShadow:"0 4px 12px rgba(91,191,160,0.4)" }}>+</button>
+      </div>
+
+      {showAdd && (
+        <Modal title="📅 Nuovo evento" onClose={()=>setShowAdd(false)}>
+          {templates.length>0 && (
+            <div style={{ marginBottom:12 }}>
+              <Label>Usa un tuo template</Label>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {templates.map(t=>(
+                  <button key={t.id} onClick={()=>applyTemplate(t)} style={{ padding:"5px 12px", borderRadius:16, fontSize:12, border:`1px solid ${P.mint}`, background:P.mintLight, cursor:"pointer", color:P.dark }}>
+                    {t.name}{t.timeFrom?` (${t.timeFrom}${t.timeTo?`-${t.timeTo}`:""})`:""}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <Inp label="Nome evento (es. Dentista, Palestra, Riunione...)" value={newEv.text} onChange={e=>setNewEv(p=>({...p,text:e.target.value}))} />
+          <Label>Data</Label>
+          <input type="date" value={newEv.date} onChange={e=>setNewEv(p=>({...p,date:e.target.value}))} style={{ width:"100%", border:`1.5px solid ${P.mint}`, borderRadius:12, padding:"8px 12px", fontSize:14, outline:"none", background:P.mintLight, color:P.dark, boxSizing:"border-box" }} />
+          <TimeInputRow label="Orario fisso (lascia vuoto per evento tutto il giorno)" from={newEv.timeFrom} to={newEv.timeTo} onFrom={e=>setNewEv(p=>({...p,timeFrom:e.target.value}))} onTo={e=>setNewEv(p=>({...p,timeTo:e.target.value}))} />
+          <Inp label="Durata (es. 1 ora, 30 min) — alternativa agli orari fissi" value={newEv.duration} onChange={e=>setNewEv(p=>({...p,duration:e.target.value}))} style={{ marginTop:4 }} />
+          <Label>Ricorrenza</Label>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+            {["none","daily","weekly","monthly"].map(r=>(
+              <button key={r} onClick={()=>setNewEv(p=>({...p,recurrence:r}))} style={{ padding:"4px 10px", borderRadius:20, fontSize:11, border:"none", cursor:"pointer", background:newEv.recurrence===r?P.mint:P.mintLight, color:newEv.recurrence===r?"#fff":P.gray }}>{REC_LABELS[r]}</button>
             ))}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-              {["none","daily","weekly","monthly"].map(r => (
-                <button key={r} onClick={() => setNewEvent(p => ({ ...p, recurrence: r }))} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, border: "none", cursor: "pointer", background: newEvent.recurrence === r ? PALETTE.mint : PALETTE.mintLight, color: newEvent.recurrence === r ? "#fff" : PALETTE.warmGray }}>
-                  {r === "none" ? "Una volta" : r === "daily" ? "Giornaliero" : r === "weekly" ? "Settimanale" : "Mensile"}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-              <button onClick={() => setNewEvent(p => ({ ...p, isShared: true }))} style={{ flex: 1, padding: "8px 0", borderRadius: 12, fontSize: 12, border: "none", cursor: "pointer", background: newEvent.isShared ? PALETTE.mint : PALETTE.mintLight, color: newEvent.isShared ? "#fff" : PALETTE.warmGray }}>🌸 Condiviso</button>
-              <button onClick={() => setNewEvent(p => ({ ...p, isShared: false }))} style={{ flex: 1, padding: "8px 0", borderRadius: 12, fontSize: 12, border: "none", cursor: "pointer", background: !newEvent.isShared ? PALETTE.mint : PALETTE.mintLight, color: !newEvent.isShared ? "#fff" : PALETTE.warmGray }}>👤 Solo mio</button>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 20, border: "none", background: PALETTE.mintLight, color: PALETTE.warmGray, cursor: "pointer", fontSize: 14 }}>Annulla</button>
-              <button onClick={addEvent} style={{ flex: 1, padding: "12px 0", borderRadius: 20, border: "none", background: `linear-gradient(135deg, ${PALETTE.mint}, ${PALETTE.mintDark})`, color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Salva ✨</button>
-            </div>
           </div>
-        </div>
+          <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+            <button onClick={()=>setNewEv(p=>({...p,isShared:true}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:newEv.isShared?P.mint:P.mintLight, color:newEv.isShared?"#fff":P.gray }}>🌸 Condiviso</button>
+            <button onClick={()=>setNewEv(p=>({...p,isShared:false}))} style={{ flex:1, padding:"7px 0", borderRadius:12, fontSize:12, border:"none", cursor:"pointer", background:!newEv.isShared?P.mint:P.mintLight, color:!newEv.isShared?"#fff":P.gray }}>👤 Solo mio</button>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={()=>setShowAdd(false)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.mintLight, color:P.gray, cursor:"pointer" }}>Annulla</button>
+            <button onClick={addEvent} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>Salva ✨</button>
+          </div>
+        </Modal>
       )}
 
-      {/* Template Manager Modal */}
-      {showTemplateManager && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 16, background: "rgba(61,43,43,0.4)", backdropFilter: "blur(4px)" }}>
-          <div style={{ width: "100%", maxWidth: 430, background: PALETTE.cream, borderRadius: 28, padding: 24, maxHeight: "80vh", overflowY: "auto" }}>
-            <h3 style={{ fontFamily: "'Playfair Display', serif", color: PALETTE.darkBrown, fontSize: 18, marginBottom: 16 }}>📋 I miei template</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              {templates.map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 14, padding: "10px 14px", border: `1.5px solid ${PALETTE.mintLight}` }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 14, fontWeight: 500, color: PALETTE.darkBrown, margin: 0 }}>{t.name}</p>
-                    {(t.timeFrom || t.timeTo) && <p style={{ fontSize: 12, color: PALETTE.warmGray, margin: 0 }}>{t.timeFrom}{t.timeTo ? ` → ${t.timeTo}` : ""}</p>}
-                  </div>
-                  <button onClick={() => deleteTemplate(t.id)} style={{ border: "none", background: "none", cursor: "pointer", color: PALETTE.mint, fontSize: 16 }}>🗑</button>
+      {showTpl && (
+        <Modal title="📋 I miei template" onClose={()=>setShowTpl(false)}>
+          {templates.length===0
+            ? <p style={{ fontSize:13, color:P.gray, textAlign:"center", marginBottom:16 }}>Nessun template ancora 🌿</p>
+            : templates.map(t=>(
+              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:14, padding:"10px 14px", marginBottom:8, border:`1.5px solid ${P.mintLight}` }}>
+                <div style={{ flex:1 }}>
+                  <p style={{ fontSize:14, fontWeight:500, color:P.dark, margin:0 }}>{t.name}</p>
+                  <p style={{ fontSize:12, color:P.gray, margin:0 }}>
+                    {t.timeFrom&&`🕐 ${t.timeFrom}${t.timeTo?` → ${t.timeTo}`:""}`}
+                    {t.duration&&` · ⏱ ${t.duration}`}
+                  </p>
                 </div>
-              ))}
-              {templates.length === 0 && <p style={{ fontSize: 13, color: PALETTE.warmGray, textAlign: "center" }}>Nessun template ancora 🌿</p>}
-            </div>
-            <p style={{ fontSize: 13, fontWeight: 600, color: PALETTE.darkBrown, marginBottom: 8 }}>Nuovo template</p>
-            {[
-              { placeholder: "Nome (es. Turno mattina)", key: "name" },
-              { placeholder: "Dalle (es. 06:00)", key: "timeFrom", type: "time" },
-              { placeholder: "Alle (es. 14:00)", key: "timeTo", type: "time" },
-            ].map(f => (
-              <input key={f.key} type={f.type || "text"} placeholder={f.placeholder} value={newTemplate[f.key]} onChange={e => setNewTemplate(p => ({ ...p, [f.key]: e.target.value }))}
-                style={{ width: "100%", border: `1.5px solid ${PALETTE.mint}`, borderRadius: 12, padding: "8px 12px", fontSize: 14, outline: "none", background: PALETTE.mintLight, color: PALETTE.darkBrown, boxSizing: "border-box", marginBottom: 8 }} />
-            ))}
-            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-              <button onClick={() => setShowTemplateManager(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 20, border: "none", background: PALETTE.mintLight, color: PALETTE.warmGray, cursor: "pointer" }}>Chiudi</button>
-              <button onClick={addTemplate} style={{ flex: 1, padding: "12px 0", borderRadius: 20, border: "none", background: `linear-gradient(135deg, ${PALETTE.mint}, ${PALETTE.mintDark})`, color: "#fff", cursor: "pointer", fontWeight: 600 }}>+ Aggiungi</button>
-            </div>
+                <button onClick={()=>deleteTemplate(t.id)} style={{ border:"none", background:"none", cursor:"pointer", fontSize:16 }}>🗑</button>
+              </div>
+            ))
+          }
+          <p style={{ fontSize:13, fontWeight:600, color:P.dark, margin:"12px 0 4px" }}>Nuovo template</p>
+          <Inp label="Nome impegno (es. Turno mattina, Palestra, Riunione...)" value={newTpl.name} onChange={e=>setNewTpl(p=>({...p,name:e.target.value}))} />
+          <TimeInputRow label="Orario fisso (opzionale — lascia vuoto se l'orario varia)" from={newTpl.timeFrom} to={newTpl.timeTo} onFrom={e=>setNewTpl(p=>({...p,timeFrom:e.target.value}))} onTo={e=>setNewTpl(p=>({...p,timeTo:e.target.value}))} />
+          <Inp label="Durata (es. 1 ora, 45 min) — per impegni senza orario fisso come palestra" value={newTpl.duration} onChange={e=>setNewTpl(p=>({...p,duration:e.target.value}))} style={{ marginTop:4 }} />
+          <div style={{ display:"flex", gap:10, marginTop:16 }}>
+            <button onClick={()=>setShowTpl(false)} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:P.mintLight, color:P.gray, cursor:"pointer" }}>Chiudi</button>
+            <button onClick={addTemplate} style={{ flex:1, padding:"12px 0", borderRadius:20, border:"none", background:`linear-gradient(135deg,${P.mint},${P.mintDark})`, color:"#fff", cursor:"pointer", fontWeight:600 }}>+ Aggiungi</button>
           </div>
-        </div>
+        </Modal>
       )}
+
+      {editEvent && <EventEditModal ev={editEvent} onClose={()=>setEditEvent(null)} />}
     </div>
   );
 }
 
-// ── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("shopping");
   const [db, setDb] = useState(null);
@@ -657,59 +683,53 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const app = initializeApp(FIREBASE_CONFIG);
-      const database = getDatabase(app);
+      const app=initializeApp(FIREBASE_CONFIG);
+      const database=getDatabase(app);
       setDb(database);
-      // Load users
-      onValue(ref(database, "users"), snap => setUsers(snap.val() || {}));
-    } catch (e) { console.error(e); }
+      onValue(ref(database,"users"),snap=>setUsers(snap.val()||{}));
+    } catch(e){ console.error(e); }
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("puzzoni_user");
+    const saved=localStorage.getItem("puzzoni_user");
     if (saved) setUser(JSON.parse(saved));
   }, []);
 
-  const handleOnboardingComplete = (name, color) => {
-    const u = { name, color };
+  const handleOnboarding=(name,color)=>{
+    const u={name,color};
     setUser(u);
-    localStorage.setItem("puzzoni_user", JSON.stringify(u));
-    if (db) set(ref(db, `users/${name}`), u);
+    localStorage.setItem("puzzoni_user",JSON.stringify(u));
+    if (db) set(ref(db,`users/${name}`),u);
   };
 
-  if (!user) return <Onboarding onComplete={handleOnboardingComplete} />;
+  if (!user) return <Onboarding onComplete={handleOnboarding} />;
 
-  const tabs = [
-    { id: "shopping", label: "Spesa", emoji: "🛒" },
-    { id: "todo", label: "Attività", emoji: "✅" },
-    { id: "calendar", label: "Calendario", emoji: "📅" },
+  const tabs=[
+    { id:"shopping", label:"Spesa", emoji:"🛒" },
+    { id:"todo", label:"Attività", emoji:"✅" },
+    { id:"calendar", label:"Calendario", emoji:"📅" },
   ];
 
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: PALETTE.cream, fontFamily: "'Lato', sans-serif", maxWidth: 430, margin: "0 auto", position: "relative" }}>
-      {/* Header */}
-      <div style={{ padding: "48px 20px 12px", background: "#fff", borderBottom: `1px solid ${PALETTE.roseLight}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", background:P.cream, fontFamily:"'Lato',sans-serif", maxWidth:430, margin:"0 auto" }}>
+      <div style={{ padding:"48px 20px 12px", background:"#fff", borderBottom:`1px solid ${P.roseLight}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", color: PALETTE.darkBrown, fontSize: 24, fontWeight: 700, margin: 0 }}>Puzzoni 🐾</h1>
-          <p style={{ color: PALETTE.warmGray, fontSize: 12, margin: 0 }}>Ciao {user.name}! 💕</p>
+          <h1 style={{ fontFamily:"'Playfair Display',serif", color:P.dark, fontSize:24, fontWeight:700, margin:0 }}>Puzzoni 🐾</h1>
+          <p style={{ color:P.gray, fontSize:12, margin:0 }}>Ciao {user.name}! 💕</p>
         </div>
-        <div style={{ width: 10, height: 10, borderRadius: "50%", background: user.color, border: `2px solid ${PALETTE.darkBrown}` }} />
+        <div style={{ width:12, height:12, borderRadius:"50%", background:user.color, border:`2px solid ${P.dark}` }} />
       </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "shopping" && <ShoppingList db={db} user={user} />}
-        {tab === "todo" && <TodoList db={db} user={user} />}
-        {tab === "calendar" && <CalendarView db={db} user={user} users={users} />}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        {tab==="shopping" && <ShoppingList db={db} user={user} />}
+        {tab==="todo" && <TodoList db={db} user={user} />}
+        {tab==="calendar" && <CalendarView db={db} user={user} users={users} />}
       </div>
-
-      {/* Bottom nav */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, display: "flex", background: "#fff", borderTop: `1px solid ${PALETTE.roseLight}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 8px", gap: 2, border: "none", background: "none", cursor: "pointer" }}>
-            <span style={{ fontSize: 20 }}>{t.emoji}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: tab === t.id ? PALETTE.roseDark : PALETTE.warmGray }}>{t.label}</span>
-            {tab === t.id && <div style={{ width: 6, height: 6, borderRadius: "50%", background: PALETTE.rose }} />}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:430, display:"flex", background:"#fff", borderTop:`1px solid ${P.roseLight}`, paddingBottom:"env(safe-area-inset-bottom)" }}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", padding:"10px 0 8px", gap:2, border:"none", background:"none", cursor:"pointer" }}>
+            <span style={{ fontSize:20 }}>{t.emoji}</span>
+            <span style={{ fontSize:11, fontWeight:600, color:tab===t.id?P.roseDark:P.gray }}>{t.label}</span>
+            {tab===t.id && <div style={{ width:6, height:6, borderRadius:"50%", background:P.rose }} />}
           </button>
         ))}
       </div>
