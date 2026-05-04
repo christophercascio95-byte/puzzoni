@@ -246,7 +246,7 @@ function ShoppingList({db}){
   );
 
   return(
-    <div style={{flex:1,overflowY:"auto",paddingBottom:100}}>
+    <div style={{flex:1,overflowY:"auto",paddingBottom:160}}>
       <div style={{padding:"16px 16px 0"}}>
         <div style={{background:"#fff",borderRadius:20,padding:16,border:`1.5px solid ${P.roseLight}`,marginBottom:12}}>
           <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -338,7 +338,7 @@ function TodoList({db,user}){
   const filtered=items.filter(i=>filter==="open"?!i.done:i.done);
 
   return(
-    <div style={{flex:1,overflowY:"auto",paddingBottom:100}}>
+    <div style={{flex:1,overflowY:"auto",paddingBottom:160}}>
       <div style={{padding:"16px 16px 0"}}>
         <div style={{background:"#fff",borderRadius:20,padding:16,border:`1.5px solid ${P.lavLight}`,marginBottom:12}}>
           <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()}
@@ -509,7 +509,7 @@ function CalendarView({db,user,users}){
 
   // Sticky header for week/day views
   const WeekHeader=({weekDays,onDayClick})=>(
-    <div style={{display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1,background:"#fff",position:"sticky",top:0,zIndex:10,paddingBottom:6,borderBottom:`1px solid ${P.mintLight}`}}>
+    <div style={{display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1,background:"#fff",paddingBottom:6,borderBottom:`1px solid ${P.mintLight}`,flexShrink:0}}>
       <div/>
       {weekDays.map((d,i)=>(
         <button key={i} onClick={()=>onDayClick(d)}
@@ -524,7 +524,7 @@ function CalendarView({db,user,users}){
   );
 
   const DayHeader=({date,onDayClick})=>(
-    <div style={{background:"#fff",position:"sticky",top:0,zIndex:10,padding:"8px 12px",borderBottom:`1px solid ${P.mintLight}`,display:"flex",alignItems:"center",gap:10}}>
+    <div style={{background:"#fff",padding:"8px 12px",flexShrink:0,borderBottom:`1px solid ${P.mintLight}`,display:"flex",alignItems:"center",gap:10}}>
       <div style={{width:36,height:36,borderRadius:"50%",background:isSameDay(date,today)?P.mint:P.mintLight,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
         <span style={{fontSize:9,color:isSameDay(date,today)?"#fff":P.gray,lineHeight:1}}>{DAYS_SHORT[date.getDay()]}</span>
         <span style={{fontSize:15,fontWeight:700,color:isSameDay(date,today)?"#fff":P.dark,lineHeight:1}}>{date.getDate()}</span>
@@ -565,7 +565,7 @@ function CalendarView({db,user,users}){
       {view==="day"&&<DayHeader date={curDate} onDayClick={openAddForDay}/>}
 
       {/* SCROLLABLE CONTENT */}
-      <div style={{flex:1,overflowY:"auto",paddingBottom:100}}>
+      <div style={{flex:1,overflowY:"auto",paddingBottom:160}}>
 
         {/* MONTH VIEW */}
         {view==="month"&&(
@@ -681,7 +681,7 @@ function CalendarView({db,user,users}){
       </div>
 
       {/* FABs */}
-      <div style={{position:"fixed",bottom:90,right:16,display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end"}}>
+      <div style={{position:"fixed",bottom:90,right:16,display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",zIndex:150}}>
         <button onClick={()=>setShowTpl(true)} style={{width:44,height:44,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}>📋</button>
         <button onClick={()=>{setNewEv({...emptyEv});setShowAdd(true);}} style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(91,191,160,0.4)"}}>+</button>
       </div>
@@ -816,7 +816,7 @@ export default function App(){
         {tab==="todo"&&<TodoList db={db} user={user}/>}
         {tab==="calendar"&&<CalendarView db={db} user={user} users={users}/>}
       </div>
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",background:"#fff",borderTop:`1px solid ${P.roseLight}`,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",background:"#fff",borderTop:`1px solid ${P.roseLight}`,paddingBottom:"env(safe-area-inset-bottom)",zIndex:200}}>
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 8px",gap:2,border:"none",background:"none",cursor:"pointer"}}>
             <span style={{fontSize:20}}>{t.emoji}</span>
