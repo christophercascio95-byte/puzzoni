@@ -80,7 +80,7 @@ function exportToICS(events,username){
 // ── COMPONENTS ───────────────────────────────────────────────────────────────
 function Lbl({children}){return<p style={{fontSize:11,fontWeight:600,color:P.gray,marginBottom:4,marginTop:10,letterSpacing:0.3}}>{children}</p>;}
 
-function Modal({onClose,children,title,buttons}){
+function Modal({onClose,children,title}){
   useEffect(()=>{
     const prev=document.body.style.overflow;
     document.body.style.overflow="hidden";
@@ -89,13 +89,12 @@ function Modal({onClose,children,title,buttons}){
   return(
     <div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center",background:"rgba(61,43,43,0.6)",backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",display:"flex",flexDirection:"column",maxHeight:"88vh"}}
+      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",display:"flex",flexDirection:"column",maxHeight:"75vh",marginBottom:65}}
         onClick={e=>e.stopPropagation()}>
-        <div style={{overflowY:"auto",flex:1,padding:"24px 20px 8px",WebkitOverflowScrolling:"touch"}}>
+        <div style={{overflowY:"auto",flex:1,padding:"24px 20px 16px",WebkitOverflowScrolling:"touch"}}>
           {title&&<h3 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:18,marginBottom:12,marginTop:0}}>{title}</h3>}
           {children}
         </div>
-        {buttons&&<div style={{padding:"12px 20px",paddingBottom:"max(20px,env(safe-area-inset-bottom))",borderTop:`1px solid ${P.roseLight}`,background:P.cream,borderRadius:"0 0 0 0",flexShrink:0}}>{buttons}</div>}
       </div>
     </div>
   );
@@ -116,7 +115,7 @@ function RecRow({value,onChange,color=P.mint,colorLight}){
 
 function BtnRow({onCancel,onSave,onDelete,saveLabel="Salva ✨"}){
   return(
-    <div style={{display:"flex",gap:8,marginTop:16,position:"sticky",bottom:0,background:P.cream,paddingBottom:8,paddingTop:8,zIndex:2}}>
+    <div style={{position:"fixed",bottom:65,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",gap:8,padding:"10px 20px",background:P.cream,borderTop:`1px solid ${P.roseLight}`,zIndex:200,boxSizing:"border-box"}}>
       {onDelete&&<button onClick={onDelete} style={{padding:"12px 14px",borderRadius:20,border:"none",background:"#FFE8E8",color:"#C0392B",cursor:"pointer",fontSize:13,fontWeight:600}}>🗑</button>}
       <button onClick={onCancel} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer",fontSize:14}}>Annulla</button>
       <button onClick={onSave} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600,fontSize:14}}>{saveLabel}</button>
