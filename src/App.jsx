@@ -89,9 +89,9 @@ function Modal({onClose,children,title}){
   return(
     <div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center",background:"rgba(61,43,43,0.6)",backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",display:"flex",flexDirection:"column",maxHeight:"75vh",marginBottom:65}}
+      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",display:"flex",flexDirection:"column",maxHeight:"82vh",marginBottom:65}}
         onClick={e=>e.stopPropagation()}>
-        <div style={{overflowY:"auto",flex:1,padding:"24px 20px 16px",WebkitOverflowScrolling:"touch"}}>
+        <div style={{overflowY:"auto",flex:1,padding:"24px 20px 100px",WebkitOverflowScrolling:"touch"}}>
           {title&&<h3 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:18,marginBottom:12,marginTop:0}}>{title}</h3>}
           {children}
         </div>
