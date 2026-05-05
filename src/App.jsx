@@ -26,7 +26,6 @@ const CAL_COLORS=[
   {name:"Cielo",value:"#A8C8E8"},{name:"Giallo",value:"#F9E4A8"},
   {name:"Rosso",value:"#F4A0A0"},{name:"Verde",value:"#A8E8B4"},
 ];
-
 const EVENT_COLORS=[
   {name:"Rosa",value:"#F9A8C9"},{name:"Lavanda",value:"#C4B5E8"},
   {name:"Menta",value:"#A8D8C8"},{name:"Pesca",value:"#FDBA9B"},
@@ -40,6 +39,9 @@ const MONTHS_SHORT=["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott",
 const DAYS_SHORT=["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
 const REC_LABELS={none:"Una volta",daily:"Ogni giorno",weekly:"Ogni settimana",monthly:"Ogni mese"};
 const PX_PER_HOUR=64;
+const START_HOUR=6;
+const END_HOUR=23;
+const HOURS=Array.from({length:END_HOUR-START_HOUR+1},(_,i)=>i+START_HOUR);
 
 function fmtDate(d){if(!d)return"";return new Date(d).toLocaleDateString("it-IT",{day:"2-digit",month:"short",year:"numeric"});}
 function fmtTime(d){if(!d)return"";return new Date(d).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});}
@@ -47,38 +49,28 @@ function isSameDay(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()==
 function timeToMin(t){if(!t)return null;const[h,m]=t.split(":").map(Number);return h*60+(m||0);}
 function toIsoDate(d){if(!d)return"";const dt=d instanceof Date?d:new Date(d);return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;}
 
-// ── ICS EXPORT ───────────────────────────────────────────────────────────────
 function exportToICS(events,username){
   const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Puzzoni//IT","CALSCALE:GREGORIAN","METHOD:PUBLISH"];
   events.forEach(ev=>{
     if(!ev.date)return;
-    const uid=`${ev.id||Date.now()}@puzzoni`;
     const dtstart=ev.timeFrom?`${ev.date.replace(/-/g,"")}T${ev.timeFrom.replace(":","") }00`:`${ev.date.replace(/-/g,"")}`;
     const dtend=ev.timeTo?`${ev.date.replace(/-/g,"")}T${ev.timeTo.replace(":","") }00`:dtstart;
     const isAllDay=!ev.timeFrom;
-    lines.push("BEGIN:VEVENT");
-    lines.push(`UID:${uid}`);
-    lines.push(`SUMMARY:${ev.text||""}`);
-    if(isAllDay){lines.push(`DTSTART;VALUE=DATE:${dtstart}`);lines.push(`DTEND;VALUE=DATE:${dtend}`);}
-    else{lines.push(`DTSTART:${dtstart}`);lines.push(`DTEND:${dtend}`);}
-    if(ev.recurrence&&ev.recurrence!=="none"){
-      const rmap={daily:"DAILY",weekly:"WEEKLY",monthly:"MONTHLY"};
-      if(rmap[ev.recurrence])lines.push(`RRULE:FREQ=${rmap[ev.recurrence]}`);
-    }
-    lines.push(`DESCRIPTION:${ev.owner||""}`);
-    lines.push("END:VEVENT");
+    lines.push("BEGIN:VEVENT",`UID:${ev.id||Date.now()}@puzzoni`,`SUMMARY:${ev.text||""}`);
+    if(isAllDay){lines.push(`DTSTART;VALUE=DATE:${dtstart}`,`DTEND;VALUE=DATE:${dtend}`);}
+    else{lines.push(`DTSTART:${dtstart}`,`DTEND:${dtend}`);}
+    if(ev.recurrence&&ev.recurrence!=="none"){const rmap={daily:"DAILY",weekly:"WEEKLY",monthly:"MONTHLY"};if(rmap[ev.recurrence])lines.push(`RRULE:FREQ=${rmap[ev.recurrence]}`);}
+    lines.push(`DESCRIPTION:${ev.owner||""}`, "END:VEVENT");
   });
   lines.push("END:VCALENDAR");
   const blob=new Blob([lines.join("\r\n")],{type:"text/calendar;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url;a.download=`puzzoni-${username||"calendario"}.ics`;
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
+  a.href=url;a.download=`puzzoni-${username||"cal"}.ics`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
 }
 
-// ── COMPONENTS ───────────────────────────────────────────────────────────────
-function Lbl({children}){return<p style={{fontSize:11,fontWeight:600,color:P.gray,marginBottom:4,marginTop:10,letterSpacing:0.3}}>{children}</p>;}
+function Lbl({children}){return<p style={{fontSize:11,fontWeight:600,color:P.gray,marginBottom:4,marginTop:10}}>{children}</p>;}
 
 function Modal({onClose,children,title}){
   useEffect(()=>{
@@ -89,7 +81,7 @@ function Modal({onClose,children,title}){
   return(
     <div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center",background:"rgba(61,43,43,0.6)",backdropFilter:"blur(6px)"}}
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",display:"flex",flexDirection:"column",maxHeight:"90vh",marginBottom:65}}
+      <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",display:"flex",flexDirection:"column",maxHeight:"90vh"}}
         onClick={e=>e.stopPropagation()}>
         <div style={{overflowY:"auto",flex:1,padding:"24px 20px 100px",WebkitOverflowScrolling:"touch"}}>
           {title&&<h3 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:18,marginBottom:12,marginTop:0}}>{title}</h3>}
@@ -100,10 +92,19 @@ function Modal({onClose,children,title}){
   );
 }
 
+function BtnRow({onCancel,onSave,onDelete,saveLabel="Salva"}){
+  return(
+    <div style={{position:"fixed",bottom:70,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",gap:8,padding:"10px 20px",background:P.cream,borderTop:`1px solid ${P.roseLight}`,zIndex:200,boxSizing:"border-box"}}>
+      {onDelete&&<button onClick={onDelete} style={{padding:"12px 14px",borderRadius:20,border:"none",background:"#FFE8E8",color:"#C0392B",cursor:"pointer",fontSize:13,fontWeight:600}}>🗑</button>}
+      <button onClick={onCancel} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer",fontSize:14}}>Annulla</button>
+      <button onClick={onSave} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600,fontSize:14}}>{saveLabel} ✨</button>
+    </div>
+  );
+}
+
 function RecRow({value,onChange,color=P.mint,colorLight}){
   return(
-    <div>
-      <Lbl>Ricorrenza</Lbl>
+    <div><Lbl>Ricorrenza</Lbl>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {["none","daily","weekly","monthly"].map(r=>(
           <button key={r} onClick={()=>onChange(r)} style={{padding:"6px 12px",borderRadius:20,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:value===r?color:colorLight||P.mintLight,color:value===r?"#fff":P.gray}}>{REC_LABELS[r]}</button>
@@ -113,21 +114,9 @@ function RecRow({value,onChange,color=P.mint,colorLight}){
   );
 }
 
-function BtnRow({onCancel,onSave,onDelete,saveLabel="Salva ✨"}){
-  return(
-    <div style={{position:"fixed",bottom:70,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",gap:8,padding:"10px 20px",background:P.cream,borderTop:`1px solid ${P.roseLight}`,zIndex:200,boxSizing:"border-box"}}>
-      {onDelete&&<button onClick={onDelete} style={{padding:"12px 14px",borderRadius:20,border:"none",background:"#FFE8E8",color:"#C0392B",cursor:"pointer",fontSize:13,fontWeight:600}}>🗑</button>}
-      <button onClick={onCancel} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer",fontSize:14}}>Annulla</button>
-      <button onClick={onSave} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600,fontSize:14}}>{saveLabel}</button>
-    </div>
-  );
-}
-
-// Color picker for events
 function ColorPicker({value,onChange,label}){
   return(
-    <div>
-      {label&&<Lbl>{label}</Lbl>}
+    <div>{label&&<Lbl>{label}</Lbl>}
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {EVENT_COLORS.map(c=>(
           <button key={c.value} onClick={()=>onChange(c.value)} title={c.name}
@@ -138,11 +127,9 @@ function ColorPicker({value,onChange,label}){
   );
 }
 
-// Native date input styled
 function DateInp({label,value,onChange,color=P.mint,colorLight}){
   return(
-    <div>
-      {label&&<Lbl>{label}</Lbl>}
+    <div>{label&&<Lbl>{label}</Lbl>}
       <input type="date" value={value} onChange={e=>onChange(e.target.value)}
         style={{width:"100%",border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none",appearance:"none"}}/>
     </div>
@@ -151,8 +138,7 @@ function DateInp({label,value,onChange,color=P.mint,colorLight}){
 
 function TimeRow({label,from,to,onFrom,onTo,color=P.mint,colorLight}){
   return(
-    <div>
-      {label&&<Lbl>{label}</Lbl>}
+    <div>{label&&<Lbl>{label}</Lbl>}
       <div style={{display:"flex",gap:10}}>
         <div style={{flex:1}}>
           <p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>Orario Da</p>
@@ -169,7 +155,6 @@ function TimeRow({label,from,to,onFrom,onTo,color=P.mint,colorLight}){
   );
 }
 
-// ── ONBOARDING ───────────────────────────────────────────────────────────────
 function Onboarding({onComplete}){
   const[name,setName]=useState("");
   const[color,setColor]=useState(CAL_COLORS[0].value);
@@ -194,7 +179,6 @@ function Onboarding({onComplete}){
   );
 }
 
-// ── SHOPPING ─────────────────────────────────────────────────────────────────
 function ShoppingList({db}){
   const[items,setItems]=useState([]);
   const[saved,setSaved]=useState([]);
@@ -248,7 +232,7 @@ function ShoppingList({db}){
   );
 
   return(
-    <div style={{flex:1,overflowY:"auto",paddingBottom:160,minHeight:0}}>
+    <div style={{flex:1,overflowY:"auto",paddingBottom:100}}>
       <div style={{padding:"16px 16px 0"}}>
         <div style={{background:"#fff",borderRadius:20,padding:16,border:`1.5px solid ${P.roseLight}`,marginBottom:12}}>
           <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -305,7 +289,7 @@ function ShoppingList({db}){
         <Modal title="✏️ Modifica prodotto" onClose={()=>setEditing(null)}>
           <Lbl>Nome prodotto</Lbl>
           <input value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} style={{width:"100%",border:`1.5px solid ${P.rose}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.roseLight,color:P.dark,boxSizing:"border-box"}}/>
-          <Lbl>Quantità (es. 2 kg, 1 bottiglia...)</Lbl>
+          <Lbl>Quantità</Lbl>
           <input value={editing.qty||""} onChange={e=>setEditing(p=>({...p,qty:e.target.value}))} style={{width:"100%",border:`1.5px solid ${P.peach}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.peachLight,color:P.dark,boxSizing:"border-box"}}/>
           <RecRow value={editing.recurrence||"none"} onChange={v=>setEditing(p=>({...p,recurrence:v}))} color={P.rose} colorLight={P.roseLight}/>
           <BtnRow onCancel={()=>setEditing(null)} onSave={saveEdit} onDelete={()=>{deleteItem(editing.id);}}/>
@@ -315,15 +299,13 @@ function ShoppingList({db}){
   );
 }
 
-// ── TODO ─────────────────────────────────────────────────────────────────────
 function TodoList({db,user}){
   const[items,setItems]=useState([]);
   const[text,setText]=useState("");
-  const[date,setDate]=useState("");
   const[rec,setRec]=useState("none");
   const[filter,setFilter]=useState("open");
   const[editing,setEditing]=useState(null);
-  const[showAddTodo,setShowAddTodo]=useState(false);
+  const[showAdd,setShowAdd]=useState(false);
 
   useEffect(()=>{
     if(!db)return;
@@ -332,18 +314,17 @@ function TodoList({db,user}){
 
   const addItem=()=>{
     if(!text.trim()||!db)return;
-    push(ref(db,"todos"),{text:text.trim(),date:date||null,recurrence:rec,done:false,createdAt:Date.now(),createdBy:user.name});
-    setText("");setDate("");setRec("none");
+    push(ref(db,"todos"),{text:text.trim(),recurrence:rec,done:false,createdAt:Date.now(),createdBy:user.name});
+    setText("");setRec("none");setShowAdd(false);
   };
   const toggleItem=(item)=>{if(!db)return;update(ref(db,`todos/${item.id}`),{done:!item.done,...(!item.done?{completedBy:user.name,completedAt:Date.now()}:{completedBy:null,completedAt:null})});};
-  const saveEdit=()=>{if(!editing||!db)return;update(ref(db,`todos/${editing.id}`),{text:editing.text,date:editing.date||null,recurrence:editing.recurrence||"none"});setEditing(null);};
+  const saveEdit=()=>{if(!editing||!db)return;update(ref(db,`todos/${editing.id}`),{text:editing.text,recurrence:editing.recurrence||"none"});setEditing(null);};
   const deleteItem=(id)=>{remove(ref(db,`todos/${id}`));if(editing?.id===id)setEditing(null);};
   const filtered=items.filter(i=>filter==="open"?!i.done:i.done);
 
   return(
-    <div style={{flex:1,overflowY:"auto",paddingBottom:160,minHeight:0}}>
+    <div style={{flex:1,overflowY:"auto",paddingBottom:100}}>
       <div style={{padding:"16px 16px 0"}}>
-
         <div style={{display:"flex",gap:8,marginBottom:12}}>
           {["open","done"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,fontWeight:600,border:"none",cursor:"pointer",background:filter===f?P.lav:P.lavLight,color:filter===f?"#fff":P.gray}}>
@@ -365,7 +346,6 @@ function TodoList({db,user}){
                 <p style={{fontSize:14,fontWeight:500,color:P.dark,margin:0,textDecoration:item.done?"line-through":"none"}}>{item.text}</p>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:2}}>
                   <span style={{fontSize:11,color:P.gray}}>Aggiunta {fmtDate(item.createdAt)} · {item.createdBy||"?"}</span>
-                  {item.date&&<span style={{fontSize:11,color:P.lavDark}}>📅 {fmtDate(item.date+"T12:00:00")}</span>}
                   {item.recurrence&&item.recurrence!=="none"&&<span style={{fontSize:11,color:P.lavDark}}>🔁 {REC_LABELS[item.recurrence]}</span>}
                 </div>
                 {item.done&&item.completedBy&&(
@@ -378,30 +358,26 @@ function TodoList({db,user}){
           </div>
         ))}
       </div>
-      {/* Todo FAB */}
-      {!showAddTodo&&!editing&&(
+      {!showAdd&&!editing&&(
         <div style={{position:"fixed",bottom:90,right:16,zIndex:10}}>
-          <button onClick={()=>{setText("");setDate("");setRec("none");setShowAddTodo(true);}}
+          <button onClick={()=>{setText("");setRec("none");setShowAdd(true);}}
             style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.lav},${P.lavDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(196,181,232,0.5)"}}>+</button>
         </div>
       )}
-
-      {/* Add Todo Modal */}
-      {showAddTodo&&(
-        <Modal title="✅ Nuova attività" onClose={()=>setShowAddTodo(false)}>
+      {showAdd&&(
+        <Modal title="✅ Nuova attività" onClose={()=>setShowAdd(false)}>
           <Lbl>Nome attività</Lbl>
-          <input value={text} onChange={e=>setText(e.target.value)} autoFocus
-            placeholder="es. Chiamare il dentista..." style={{width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={text} onChange={e=>setText(e.target.value)} autoFocus placeholder="es. Chiamare il dentista..."
+            style={{width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box"}}/>
           <RecRow value={rec} onChange={setRec} color={P.lav} colorLight={P.lavLight}/>
-          <BtnRow onCancel={()=>setShowAddTodo(false)} onSave={()=>{addItem();setShowAddTodo(false);}}/>
+          <BtnRow onCancel={()=>setShowAdd(false)} onSave={addItem}/>
         </Modal>
       )}
-
       {editing&&(
         <Modal title="✏️ Modifica attività" onClose={()=>setEditing(null)}>
           <Lbl>Nome attività</Lbl>
-          <input value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} style={{width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box"}}/>
-          <DateInp label="Data scadenza" value={editing.date||""} onChange={v=>setEditing(p=>({...p,date:v}))} color={P.lav} colorLight={P.lavLight}/>
+          <input value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))}
+            style={{width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box"}}/>
           <RecRow value={editing.recurrence||"none"} onChange={v=>setEditing(p=>({...p,recurrence:v}))} color={P.lav} colorLight={P.lavLight}/>
           {editing.done&&editing.completedBy&&(
             <div style={{background:P.lavLight,borderRadius:12,padding:"10px 14px",marginTop:12}}>
@@ -416,7 +392,6 @@ function TodoList({db,user}){
   );
 }
 
-// ── CALENDAR ─────────────────────────────────────────────────────────────────
 function CalendarView({db,user,users}){
   const[events,setEvents]=useState([]);
   const[templates,setTemplates]=useState([]);
@@ -438,14 +413,14 @@ function CalendarView({db,user,users}){
     return()=>{u1();u2();};
   },[db,user]);
 
-  const openAddForDay=(date)=>{
-    setNewEv({...emptyEv,date:toIsoDate(date)});
+  const openAdd=(date,hour=null)=>{
+    const h=hour!==null?`${String(hour).padStart(2,"0")}:00`:"";
+    setNewEv({...emptyEv,date:toIsoDate(date),timeFrom:h});
     setShowAdd(true);
   };
 
   const addEvent=()=>{
     if(!newEv.text.trim()||!newEv.date||!db)return;
-    // For shared events use owner color; for personal use chosen color
     const evColor=newEv.isShared?user.color:(newEv.color||user.color);
     push(ref(db,"calendarEvents"),{...newEv,color:evColor,owner:user.name,ownerColor:user.color,createdAt:Date.now()});
     setNewEv({...emptyEv});setShowAdd(false);
@@ -466,10 +441,9 @@ function CalendarView({db,user,users}){
 
   const deleteEvent=(id)=>{remove(ref(db,`calendarEvents/${id}`));if(editEv?.id===id)setEditEv(null);};
   const deleteTemplate=(id)=>remove(ref(db,`templates/${user.name}/${id}`));
-  const applyTemplate=(t)=>{setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||""}));setShowAdd(true);setShowTpl(false);};
-  
+  const applyTemplate=(t)=>{setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||""}));setShowTpl(false);setShowAdd(true);};
   const getEvColor=(ev)=>ev.color||ev.ownerColor||P.mint;
-  const getUserColor=(ownerName)=>{const u=Object.values(users||{}).find(u=>u.name===ownerName);return u?.color||P.mint;};
+  const getUserColor=(name)=>{const u=Object.values(users||{}).find(u=>u.name===name);return u?.color||P.mint;};
 
   const visibleEvents=events.filter(ev=>calFilter==="mine"?ev.owner===user.name:(ev.isShared||ev.owner===user.name));
 
@@ -491,20 +465,17 @@ function CalendarView({db,user,users}){
   const monthEvs=expandForMonth(year,month);
   const getEvForDay=(d)=>monthEvs.filter(ev=>isSameDay(ev.displayDate,d));
   const today=new Date();
-  const navigate=(dir)=>{const d=new Date(curDate);if(view==="month")d.setMonth(d.getMonth()+dir);else if(view==="week")d.setDate(d.getDate()+dir*7);else d.setDate(d.getDate()+dir);setCurDate(d);};
+  const navigate=(dir)=>{const d=new Date(curDate);if(view==="month")d.setMonth(d.getMonth()+dir);else d.setDate(d.getDate()+dir*7);setCurDate(d);};
   const getWeekDays=()=>{const d=new Date(curDate);d.setDate(d.getDate()-d.getDay());return Array.from({length:7},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd;});};
-  const headerLabel=()=>{if(view==="month")return`${MONTHS[month]} ${year}`;if(view==="week"){const w=getWeekDays();return`${w[0].getDate()} - ${w[6].getDate()} ${MONTHS_SHORT[w[6].getMonth()]}`;}return`${curDate.getDate()} ${MONTHS[curDate.getMonth()]}`;};
-
-  // Export ICS for current user's events
-  const handleExport=()=>{
-    const myEvents=events.filter(ev=>ev.owner===user.name||(ev.isShared&&calFilter==="shared"));
-    exportToICS(myEvents,user.name);
+  const headerLabel=()=>{
+    if(view==="month")return`${MONTHS[month]} ${year}`;
+    const w=getWeekDays();return`${w[0].getDate()} - ${w[6].getDate()} ${MONTHS_SHORT[w[6].getMonth()]}`;
   };
 
   const EventCard=({ev})=>(
     <div onClick={()=>ev.owner===user.name&&setEditEv({...ev})}
       style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${P.mintLight}`,cursor:ev.owner===user.name?"pointer":"default"}}>
-      <div style={{width:10,height:10,borderRadius:"50%",background:getEvColor(ev),flexShrink:0,border:`1.5px solid rgba(0,0,0,0.1)`}}/>
+      <div style={{width:10,height:10,borderRadius:"50%",background:getEvColor(ev),flexShrink:0}}/>
       <div style={{flex:1}}>
         <p style={{fontSize:13,fontWeight:500,color:P.dark,margin:0}}>{ev.text}</p>
         <p style={{fontSize:11,color:P.gray,margin:0}}>{ev.owner}{ev.timeFrom?` · ${ev.timeFrom}${ev.timeTo?` - ${ev.timeTo}`:""}`:""}{ev.duration?` · ⏱ ${ev.duration}`:""}</p>
@@ -513,47 +484,16 @@ function CalendarView({db,user,users}){
     </div>
   );
 
-  const SharedToggle=({isShared,onChange})=>(
-    <div>
-      <Lbl>Visibilità</Lbl>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={()=>onChange(true)} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:isShared?P.mint:P.mintLight,color:isShared?"#fff":P.gray}}>🌸 Condiviso</button>
-        <button onClick={()=>onChange(false)} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!isShared?P.mint:P.mintLight,color:!isShared?"#fff":P.gray}}>👤 Solo mio</button>
-      </div>
-    </div>
-  );
+  const weekDays=getWeekDays();
+  const allWE=weekDays.map(d=>expandForMonth(d.getFullYear(),d.getMonth()).filter(ev=>isSameDay(ev.displayDate,d)));
 
-  // Sticky header for week/day views
-  const WeekHeader=({weekDays,onDayClick})=>(
-    <div style={{display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1,background:"#fff",paddingBottom:6,borderBottom:`1px solid ${P.mintLight}`,flexShrink:0}}>
-      <div/>
-      {weekDays.map((d,i)=>(
-        <button key={i} onClick={()=>onDayClick(d)}
-          style={{textAlign:"center",paddingBottom:2,background:"none",border:"none",cursor:"pointer"}}>
-          <p style={{fontSize:10,color:P.gray,margin:0}}>{DAYS_SHORT[d.getDay()]}</p>
-          <div style={{width:26,height:26,borderRadius:"50%",background:isSameDay(d,today)?P.mint:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"2px auto 0"}}>
-            <span style={{fontSize:12,fontWeight:600,color:isSameDay(d,today)?"#fff":P.dark}}>{d.getDate()}</span>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-
-  const DayHeader=({date,onDayClick})=>(
-    <div style={{background:"#fff",padding:"8px 12px",flexShrink:0,borderBottom:`1px solid ${P.mintLight}`,display:"flex",alignItems:"center",gap:10}}>
-      <div style={{width:36,height:36,borderRadius:"50%",background:isSameDay(date,today)?P.mint:P.mintLight,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-        <span style={{fontSize:9,color:isSameDay(date,today)?"#fff":P.gray,lineHeight:1}}>{DAYS_SHORT[date.getDay()]}</span>
-        <span style={{fontSize:15,fontWeight:700,color:isSameDay(date,today)?"#fff":P.dark,lineHeight:1}}>{date.getDate()}</span>
-      </div>
-      <span style={{fontSize:14,color:P.gray}}>{MONTHS[date.getMonth()]} {date.getFullYear()}</span>
-      <button onClick={()=>openAddForDay(date)} style={{marginLeft:"auto",padding:"6px 14px",borderRadius:16,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff"}}>+ Evento</button>
-    </div>
-  );
+  const anyModalOpen=showAdd||showTpl||!!editEv;
 
   return(
-    <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
-      {/* TOP CONTROLS - always visible */}
-      <div style={{padding:"10px 14px 0",background:"#fff",borderBottom:`1px solid ${P.roseLight}`,flexShrink:0}}>
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+
+      {/* TOP CONTROLS */}
+      <div style={{flexShrink:0,background:"#fff",borderBottom:`1px solid ${P.roseLight}`,padding:"10px 14px 8px"}}>
         <div style={{display:"flex",gap:6,marginBottom:8}}>
           {["month","week"].map(v=>(
             <button key={v} onClick={()=>setView(v)} style={{flex:1,padding:"6px 0",borderRadius:10,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",background:view===v?P.mint:P.mintLight,color:view===v?"#fff":P.gray}}>
@@ -564,31 +504,37 @@ function CalendarView({db,user,users}){
         <div style={{display:"flex",gap:6,marginBottom:8}}>
           <button onClick={()=>setCalFilter("shared")} style={{flex:1,padding:"5px 0",borderRadius:10,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:calFilter==="shared"?user.color:P.mintLight,color:calFilter==="shared"?"#fff":P.gray}}>🌸 Condiviso</button>
           <button onClick={()=>setCalFilter("mine")} style={{flex:1,padding:"5px 0",borderRadius:10,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:calFilter==="mine"?user.color:P.mintLight,color:calFilter==="mine"?"#fff":P.gray}}>👤 Il mio</button>
-          <button onClick={handleExport} title="Esporta al calendario iPhone" style={{padding:"5px 10px",borderRadius:10,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:P.mintLight,color:P.gray}}>📲</button>
+          <button onClick={()=>exportToICS(events,user.name)} title="Esporta al calendario iPhone" style={{padding:"5px 10px",borderRadius:10,fontSize:12,border:"none",cursor:"pointer",background:P.mintLight,color:P.gray}}>📲</button>
         </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
           <button onClick={()=>navigate(-1)} style={{width:32,height:32,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18}}>‹</button>
           <span style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:700,color:P.dark}}>{headerLabel()}</span>
           <button onClick={()=>navigate(1)} style={{width:32,height:32,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18}}>›</button>
         </div>
       </div>
 
-      {/* WEEK HEADER - outside scroll, always visible */}
-      {view==="week"&&(()=>{
-        const weekDays=getWeekDays();
-        return(
-          <div style={{background:"#fff",flexShrink:0,borderBottom:`1px solid ${P.mintLight}`}}>
-            <WeekHeader weekDays={weekDays} onDayClick={(d)=>openAddForDay(d)}/>
-          </div>
-        );
-      })()}
+      {/* WEEK DAYS HEADER - always fixed, outside scroll */}
+      {view==="week"&&(
+        <div style={{flexShrink:0,background:"#fff",borderBottom:`1px solid ${P.mintLight}`,display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",padding:"4px 2px"}}>
+          <div/>
+          {weekDays.map((d,i)=>(
+            <button key={i} onClick={()=>openAdd(d)}
+              style={{textAlign:"center",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>
+              <p style={{fontSize:10,color:P.gray,margin:0}}>{DAYS_SHORT[d.getDay()]}</p>
+              <div style={{width:26,height:26,borderRadius:"50%",background:isSameDay(d,today)?P.mint:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"2px auto 0"}}>
+                <span style={{fontSize:12,fontWeight:600,color:isSameDay(d,today)?"#fff":P.dark}}>{d.getDate()}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* SCROLLABLE CONTENT */}
-      <div style={{flex:1,overflowY:"auto",paddingBottom:160,minHeight:0}}>
+      {/* SCROLLABLE AREA */}
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
 
         {/* MONTH VIEW */}
         {view==="month"&&(
-          <div style={{padding:"0 10px"}}>
+          <div style={{padding:"0 10px 100px"}}>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginTop:8,marginBottom:4}}>
               {["D","L","M","M","G","V","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:11,fontWeight:600,color:P.gray,padding:"3px 0"}}>{d}</div>)}
             </div>
@@ -599,12 +545,7 @@ function CalendarView({db,user,users}){
                 const isToday=isSameDay(d,today),isSel=selDay&&isSameDay(d,selDay);
                 const dayEvs=getEvForDay(d);
                 return(
-                  <button key={day}
-                    onClick={()=>{
-                      if(isSel){setSelDay(null);}
-                      else{setSelDay(d);}
-                    }}
-                    onDoubleClick={()=>openAddForDay(d)}
+                  <button key={day} onClick={()=>setSelDay(isSel?null:d)} onDoubleClick={()=>openAdd(d)}
                     style={{aspectRatio:"1",borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",border:isToday?`2px solid ${P.mint}`:"2px solid transparent",background:isSel?P.mint:"transparent",cursor:"pointer"}}>
                     <span style={{fontSize:12,fontWeight:500,color:isSel?"#fff":P.dark}}>{day}</span>
                     <div style={{display:"flex",gap:2,marginTop:1}}>
@@ -618,7 +559,7 @@ function CalendarView({db,user,users}){
               <div style={{marginTop:12}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                   <p style={{fontSize:12,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,margin:0}}>{selDay.getDate()} {MONTHS[selDay.getMonth()]}</p>
-                  <button onClick={()=>openAddForDay(selDay)} style={{padding:"5px 12px",borderRadius:14,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff"}}>+ Evento</button>
+                  <button onClick={()=>openAdd(selDay)} style={{padding:"5px 12px",borderRadius:14,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff"}}>+ Evento</button>
                 </div>
                 {getEvForDay(selDay).length===0
                   ?<p style={{fontSize:13,color:P.gray,textAlign:"center",padding:"16px 0"}}>Nessun evento 🌸</p>
@@ -629,54 +570,46 @@ function CalendarView({db,user,users}){
           </div>
         )}
 
-        {/* WEEK VIEW */}
-        {view==="week"&&(()=>{
-          const weekDays=getWeekDays();
-          const allWE=weekDays.map(d=>expandForMonth(d.getFullYear(),d.getMonth()).filter(ev=>isSameDay(ev.displayDate,d)));
-          const HOURS=Array.from({length:18},(_,h)=>h+6);
-          const totalH=HOURS.length*PX_PER_HOUR;
-          return(
-            <div style={{display:"flex",flexDirection:"row",padding:"0 2px"}}>
-              {/* Hour labels column */}
-              <div style={{width:32,flexShrink:0}}>
-                {HOURS.map(h=>(
-                  <div key={h} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,fontSize:9,color:P.gray,paddingTop:2,textAlign:"right",paddingRight:3,boxSizing:"border-box"}}>{h}:00</div>
-                ))}
-              </div>
-              {/* Day columns */}
-              {weekDays.map((d,di)=>(
-                <div key={di} style={{flex:1,position:"relative",borderLeft:`1px solid ${P.mintLight}`}} onClick={()=>{const h=6;const ev2={...emptyEv,date:toIsoDate(d),timeFrom:`${String(h).padStart(2,"0")}:00`};setNewEv(ev2);setShowAdd(true);}}>
-                  {HOURS.map(h=>(
-                    <div key={h} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,cursor:"pointer"}}
-                      onClick={e=>{e.stopPropagation();const ev2={...emptyEv,date:toIsoDate(d),timeFrom:`${String(h).padStart(2,"0")}:00`};setNewEv(ev2);setShowAdd(true);}}/>
-                  ))}
-                  {allWE[di].filter(ev=>ev.timeFrom).map((ev,ei)=>{
-                    const fromMin=timeToMin(ev.timeFrom);
-                    const toMin=ev.timeTo?timeToMin(ev.timeTo):fromMin+60;
-                    const startH=6;
-                    const top=(fromMin-startH*60)/60*PX_PER_HOUR;
-                    const height=Math.max(((toMin-fromMin)/60)*PX_PER_HOUR,16);
-                    return(
-                      <div key={ei} onClick={e=>{e.stopPropagation();ev.owner===user.name&&setEditEv({...ev});}}
-                        style={{position:"absolute",top,left:1,right:1,height,background:getEvColor(ev),borderRadius:4,padding:"1px 3px",fontSize:8,color:"#fff",overflow:"hidden",cursor:ev.owner===user.name?"pointer":"default",zIndex:2}}>
-                        {ev.text}
-                      </div>
-                    );
-                  })}
-                </div>
+        {/* WEEK VIEW - grid with hours */}
+        {view==="week"&&(
+          <div style={{display:"flex",paddingBottom:100}}>
+            {/* Hour labels */}
+            <div style={{width:32,flexShrink:0}}>
+              {HOURS.map(h=>(
+                <div key={h} style={{height:PX_PER_HOUR,fontSize:9,color:P.gray,paddingTop:3,textAlign:"right",paddingRight:4,boxSizing:"border-box",borderTop:`1px solid ${P.mintLight}`}}>{h}:00</div>
               ))}
             </div>
-          );
-        })()}
-
-      </div>iv>
-
-      {/* FABs */}
-      {!showAdd&&!showTpl&&!editEv&&(
-      <div style={{position:"fixed",bottom:90,right:16,display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",zIndex:150}}>
-        <button onClick={()=>setShowTpl(true)} style={{width:44,height:44,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}>📋</button>
-        <button onClick={()=>{setNewEv({...emptyEv});setShowAdd(true);}} style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(91,191,160,0.4)"}}>+</button>
+            {/* Day columns */}
+            {weekDays.map((d,di)=>(
+              <div key={di} style={{flex:1,position:"relative",borderLeft:`1px solid ${P.mintLight}`}}>
+                {HOURS.map(h=>(
+                  <div key={h} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,cursor:"pointer"}}
+                    onClick={()=>openAdd(d,h)}/>
+                ))}
+                {allWE[di].filter(ev=>ev.timeFrom).map((ev,ei)=>{
+                  const fromMin=timeToMin(ev.timeFrom);
+                  const toMin=ev.timeTo?timeToMin(ev.timeTo):fromMin+60;
+                  const top=((fromMin-START_HOUR*60)/60)*PX_PER_HOUR;
+                  const height=Math.max(((toMin-fromMin)/60)*PX_PER_HOUR,16);
+                  return(
+                    <div key={ei} onClick={e=>{e.stopPropagation();ev.owner===user.name&&setEditEv({...ev});}}
+                      style={{position:"absolute",top,left:1,right:1,height,background:getEvColor(ev),borderRadius:4,padding:"2px 4px",fontSize:9,color:"#fff",overflow:"hidden",cursor:ev.owner===user.name?"pointer":"default",zIndex:2,boxSizing:"border-box"}}>
+                      {ev.text}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* FABs - hidden when modal open */}
+      {!anyModalOpen&&(
+        <div style={{position:"fixed",bottom:90,right:16,display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",zIndex:10}}>
+          <button onClick={()=>setShowTpl(true)} style={{width:44,height:44,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}>📋</button>
+          <button onClick={()=>{setNewEv({...emptyEv});setShowAdd(true);}} style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(91,191,160,0.4)"}}>+</button>
+        </div>
       )}
 
       {/* ADD EVENT MODAL */}
@@ -695,16 +628,21 @@ function CalendarView({db,user,users}){
             </div>
           )}
           <Lbl>Nome evento</Lbl>
-          <input value={newEv.text} onChange={e=>setNewEv(p=>({...p,text:e.target.value}))} placeholder="es. Dentista, Palestra..." style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={newEv.text} onChange={e=>setNewEv(p=>({...p,text:e.target.value}))} placeholder="es. Dentista, Palestra..."
+            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <DateInp label="Data" value={newEv.date} onChange={v=>setNewEv(p=>({...p,date:v}))}/>
-          <TimeRow label="Orario fisso (lascia vuoto per evento tutto il giorno)" from={newEv.timeFrom} to={newEv.timeTo} onFrom={v=>setNewEv(p=>({...p,timeFrom:v}))} onTo={v=>setNewEv(p=>({...p,timeTo:v}))}/>
+          <TimeRow label="Orario fisso (lascia vuoto per tutto il giorno)" from={newEv.timeFrom} to={newEv.timeTo} onFrom={v=>setNewEv(p=>({...p,timeFrom:v}))} onTo={v=>setNewEv(p=>({...p,timeTo:v}))}/>
           <Lbl>Durata (es. 1 ora) — alternativa agli orari fissi</Lbl>
-          <input value={newEv.duration} onChange={e=>setNewEv(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora, 30 min..." style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={newEv.duration} onChange={e=>setNewEv(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora, 30 min..."
+            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <RecRow value={newEv.recurrence} onChange={v=>setNewEv(p=>({...p,recurrence:v}))}/>
-          <SharedToggle isShared={newEv.isShared} onChange={v=>setNewEv(p=>({...p,isShared:v}))}/>
-          {!newEv.isShared&&(
-            <ColorPicker label="Colore evento (solo calendario personale)" value={newEv.color||user.color} onChange={v=>setNewEv(p=>({...p,color:v}))}/>
-          )}
+          <div><Lbl>Visibilità</Lbl>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setNewEv(p=>({...p,isShared:true}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:newEv.isShared?P.mint:P.mintLight,color:newEv.isShared?"#fff":P.gray}}>🌸 Condiviso</button>
+              <button onClick={()=>setNewEv(p=>({...p,isShared:false}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!newEv.isShared?P.mint:P.mintLight,color:!newEv.isShared?"#fff":P.gray}}>👤 Solo mio</button>
+            </div>
+          </div>
+          {!newEv.isShared&&<ColorPicker label="Colore evento" value={newEv.color||user.color} onChange={v=>setNewEv(p=>({...p,color:v}))}/>}
           <BtnRow onCancel={()=>setShowAdd(false)} onSave={addEvent}/>
         </Modal>
       )}
@@ -727,10 +665,12 @@ function CalendarView({db,user,users}){
           }
           <p style={{fontSize:13,fontWeight:600,color:P.dark,margin:"16px 0 4px"}}>Nuovo template</p>
           <Lbl>Nome impegno</Lbl>
-          <input value={newTpl.name} onChange={e=>setNewTpl(p=>({...p,name:e.target.value}))} placeholder="es. Turno mattina, Palestra..." style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={newTpl.name} onChange={e=>setNewTpl(p=>({...p,name:e.target.value}))} placeholder="es. Turno mattina, Palestra..."
+            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <TimeRow label="Orario fisso (opzionale)" from={newTpl.timeFrom} to={newTpl.timeTo} onFrom={v=>setNewTpl(p=>({...p,timeFrom:v}))} onTo={v=>setNewTpl(p=>({...p,timeTo:v}))}/>
           <Lbl>Durata (es. 1 ora) — per impegni senza orario fisso</Lbl>
-          <input value={newTpl.duration} onChange={e=>setNewTpl(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora, 45 min..." style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={newTpl.duration} onChange={e=>setNewTpl(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora, 45 min..."
+            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={()=>setShowTpl(false)} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer"}}>Chiudi</button>
             <button onClick={addTemplate} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600}}>+ Aggiungi</button>
@@ -742,16 +682,21 @@ function CalendarView({db,user,users}){
       {editEv&&(
         <Modal title="✏️ Modifica evento" onClose={()=>setEditEv(null)}>
           <Lbl>Nome evento</Lbl>
-          <input value={editEv.text} onChange={e=>setEditEv(p=>({...p,text:e.target.value}))} style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={editEv.text} onChange={e=>setEditEv(p=>({...p,text:e.target.value}))}
+            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <DateInp label="Data" value={editEv.date||""} onChange={v=>setEditEv(p=>({...p,date:v}))}/>
           <TimeRow label="Orario fisso" from={editEv.timeFrom||""} to={editEv.timeTo||""} onFrom={v=>setEditEv(p=>({...p,timeFrom:v}))} onTo={v=>setEditEv(p=>({...p,timeTo:v}))}/>
           <Lbl>Durata</Lbl>
-          <input value={editEv.duration||""} onChange={e=>setEditEv(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora..." style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={editEv.duration||""} onChange={e=>setEditEv(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora..."
+            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <RecRow value={editEv.recurrence||"none"} onChange={v=>setEditEv(p=>({...p,recurrence:v}))}/>
-          <SharedToggle isShared={editEv.isShared} onChange={v=>setEditEv(p=>({...p,isShared:v}))}/>
-          {!editEv.isShared&&(
-            <ColorPicker label="Colore evento" value={editEv.color||user.color} onChange={v=>setEditEv(p=>({...p,color:v}))}/>
-          )}
+          <div><Lbl>Visibilità</Lbl>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setEditEv(p=>({...p,isShared:true}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:editEv.isShared?P.mint:P.mintLight,color:editEv.isShared?"#fff":P.gray}}>🌸 Condiviso</button>
+              <button onClick={()=>setEditEv(p=>({...p,isShared:false}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!editEv.isShared?P.mint:P.mintLight,color:!editEv.isShared?"#fff":P.gray}}>👤 Solo mio</button>
+            </div>
+          </div>
+          {!editEv.isShared&&<ColorPicker label="Colore evento" value={editEv.color||user.color} onChange={v=>setEditEv(p=>({...p,color:v}))}/>}
           <BtnRow onCancel={()=>setEditEv(null)} onSave={saveEditEv} onDelete={()=>{deleteEvent(editEv.id);setEditEv(null);}}/>
         </Modal>
       )}
@@ -759,7 +704,6 @@ function CalendarView({db,user,users}){
   );
 }
 
-// ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App(){
   const[tab,setTab]=useState("shopping");
   const[db,setDb]=useState(null);
@@ -796,20 +740,20 @@ export default function App(){
   ];
 
   return(
-    <div style={{minHeight:"100dvh",display:"flex",flexDirection:"column",background:P.cream,fontFamily:"'Lato',sans-serif",maxWidth:430,margin:"0 auto"}}>
-      <div style={{padding:"48px 20px 12px",background:"#fff",borderBottom:`1px solid ${P.roseLight}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+    <div style={{height:"100dvh",display:"flex",flexDirection:"column",background:P.cream,fontFamily:"'Lato',sans-serif",maxWidth:430,margin:"0 auto",overflow:"hidden"}}>
+      <div style={{flexShrink:0,padding:"48px 20px 12px",background:"#fff",borderBottom:`1px solid ${P.roseLight}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
           <h1 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:24,fontWeight:700,margin:0}}>Puzzoni 🐾</h1>
           <p style={{color:P.gray,fontSize:12,margin:0}}>Ciao {user.name}! 💕</p>
         </div>
         <div style={{width:12,height:12,borderRadius:"50%",background:user.color,border:`2px solid ${P.dark}`}}/>
       </div>
-      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab==="shopping"&&<ShoppingList db={db} user={user}/>}
         {tab==="todo"&&<TodoList db={db} user={user}/>}
         {tab==="calendar"&&<CalendarView db={db} user={user} users={users}/>}
       </div>
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",background:"#fff",borderTop:`1px solid ${P.roseLight}`,paddingBottom:"env(safe-area-inset-bottom)",zIndex:200}}>
+      <div style={{flexShrink:0,display:"flex",background:"#fff",borderTop:`1px solid ${P.roseLight}`,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 8px",gap:2,border:"none",background:"none",cursor:"pointer"}}>
             <span style={{fontSize:20}}>{t.emoji}</span>
