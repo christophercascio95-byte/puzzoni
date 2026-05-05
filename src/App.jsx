@@ -156,12 +156,12 @@ function TimeRow({label,from,to,onFrom,onTo,color=P.mint,colorLight}){
       <div style={{display:"flex",gap:10}}>
         <div style={{flex:1}}>
           <p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>Orario Da</p>
-          <input type="time" step="900" value={from} onChange={e=>{const[h,m]=e.target.value.split(":");const min=parseInt(m);const rounded=Math.round(min/15)*15;const fixedMin=rounded>=60?45:rounded;onFrom(`${h}:${String(fixedMin).padStart(2,"0")}`);}}
+          <input type="time" step="900" value={from} onChange={e=>{if(!e.target.value)return onFrom("");const[h,m]=e.target.value.split(":");const min=parseInt(m||0);const rounded=Math.round(min/15)*15;const fixedMin=rounded>=60?45:rounded;onFrom(`${h}:${String(fixedMin).padStart(2,"0")}`);}}
             style={{width:"100%",border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none",appearance:"none"}}/>
         </div>
         <div style={{flex:1}}>
           <p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>Orario A</p>
-          <input type="time" step="900" value={to} onChange={e=>{const[h,m]=e.target.value.split(":");const min=parseInt(m);const rounded=Math.round(min/15)*15;const fixedMin=rounded>=60?45:rounded;onTo(`${h}:${String(fixedMin).padStart(2,"0")}`);}}
+          <input type="time" step="900" value={to} onChange={e=>{if(!e.target.value)return onTo("");const[h,m]=e.target.value.split(":");const min=parseInt(m||0);const rounded=Math.round(min/15)*15;const fixedMin=rounded>=60?45:rounded;onTo(`${h}:${String(fixedMin).padStart(2,"0")}`);}}
             style={{width:"100%",border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none",appearance:"none"}}/>
         </div>
       </div>
@@ -551,7 +551,7 @@ function CalendarView({db,user,users}){
   );
 
   return(
-    <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+    <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
       {/* TOP CONTROLS - always visible */}
       <div style={{padding:"10px 14px 0",background:"#fff",borderBottom:`1px solid ${P.roseLight}`,flexShrink:0}}>
         <div style={{display:"flex",gap:6,marginBottom:8}}>
@@ -793,7 +793,7 @@ export default function App(){
         </div>
         <div style={{width:12,height:12,borderRadius:"50%",background:user.color,border:`2px solid ${P.dark}`}}/>
       </div>
-      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
         {tab==="shopping"&&<ShoppingList db={db} user={user}/>}
         {tab==="todo"&&<TodoList db={db} user={user}/>}
         {tab==="calendar"&&<CalendarView db={db} user={user} users={users}/>}
