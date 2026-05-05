@@ -428,7 +428,7 @@ function CalendarView({db,user,users}){
   const[editEv,setEditEv]=useState(null);
   const emptyEv={text:"",date:"",timeFrom:"",timeTo:"",duration:"",recurrence:"none",isShared:true,color:""};
   const[newEv,setNewEv]=useState({...emptyEv});
-  const[newTpl,setNewTpl]=useState({name:"",timeFrom:"",timeTo:"",duration:""});
+  const[newTpl,setNewTpl]=useState({name:"",timeFrom:"",timeTo:"",duration:"",color:""});
 
   useEffect(()=>{
     if(!db)return;
@@ -439,7 +439,7 @@ function CalendarView({db,user,users}){
 
   const openAdd=(date,hour=null)=>{
     const h=hour!==null?`${String(hour).padStart(2,"0")}:00`:"";
-    setNewEv({...emptyEv,date:toIsoDate(date),timeFrom:h});
+    setNewEv({...emptyEv,date:toIsoDate(date instanceof Date?date:new Date(date)),timeFrom:h});
     setShowAdd(true);
   };
 
@@ -465,7 +465,7 @@ function CalendarView({db,user,users}){
 
   const deleteEvent=(id)=>{remove(ref(db,`calendarEvents/${id}`));if(editEv?.id===id)setEditEv(null);};
   const deleteTemplate=(id)=>remove(ref(db,`templates/${user.name}/${id}`));
-  const applyTemplate=(t)=>{setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||""}));setShowTpl(false);setShowAdd(true);};
+  const applyTemplate=(t)=>{setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||"",color:t.color||"",isShared:false}));setShowTpl(false);setShowAdd(true);};
   const getEvColor=(ev)=>ev.color||ev.ownerColor||P.mint;
   const getUserColor=(name)=>{const u=Object.values(users||{}).find(u=>u.name===name);return u?.color||P.mint;};
 
@@ -572,8 +572,13 @@ function CalendarView({db,user,users}){
                   <button key={day} onClick={()=>setSelDay(isSel?null:d)} onDoubleClick={()=>openAdd(d)}
                     style={{aspectRatio:"1",borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",border:isToday?`2px solid ${P.mint}`:"2px solid transparent",background:isSel?P.mint:"transparent",cursor:"pointer"}}>
                     <span style={{fontSize:12,fontWeight:500,color:isSel?"#fff":P.dark}}>{day}</span>
-                    <div style={{display:"flex",gap:2,marginTop:1}}>
-                      {dayEvs.slice(0,3).map((ev,di)=><div key={di} style={{width:5,height:5,borderRadius:"50%",background:isSel?"#fff":getEvColor(ev)}}/>)}
+                    <div style={{display:"flex",flexDirection:"column",gap:1,marginTop:1,width:"100%",paddingHorizontal:1}}>
+                      {dayEvs.slice(0,2).map((ev,di)=>(
+                        <div key={di} style={{background:isSel?"rgba(255,255,255,0.4)":getEvColor(ev),borderRadius:3,padding:"0 2px",fontSize:7,color:isSel?"#fff":"#3D2B2B",fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"100%",lineHeight:"11px"}}>
+                          {ev.text}
+                        </div>
+                      ))}
+                      {dayEvs.length>2&&<div style={{fontSize:7,color:isSel?"#fff":P.gray}}>+{dayEvs.length-2}</div>}
                     </div>
                   </button>
                 );
@@ -690,6 +695,7 @@ function CalendarView({db,user,users}){
             ?<p style={{fontSize:13,color:P.gray,textAlign:"center",marginBottom:16}}>Nessun template ancora 🌿</p>
             :templates.map(t=>(
               <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${P.mintLight}`}}>
+                <div style={{width:12,height:12,borderRadius:"50%",background:t.color||P.mint,flexShrink:0,border:"1.5px solid rgba(0,0,0,0.1)"}}/>
                 <div style={{flex:1}}>
                   <p style={{fontSize:14,fontWeight:500,color:P.dark,margin:0}}>{t.name}</p>
                   <p style={{fontSize:12,color:P.gray,margin:0}}>{t.timeFrom?`🕐 ${t.timeFrom}${t.timeTo?` → ${t.timeTo}`:""}`:""}{t.duration?` · ⏱ ${t.duration}`:""}</p>
@@ -704,9 +710,11 @@ function CalendarView({db,user,users}){
           <input value={newTpl.name} onChange={e=>setNewTpl(p=>({...p,name:e.target.value}))} placeholder="es. Turno mattina, Palestra..."
             style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <TimeRow label="Orario fisso (opzionale)" from={newTpl.timeFrom} to={newTpl.timeTo} onFrom={v=>setNewTpl(p=>({...p,timeFrom:v}))} onTo={v=>setNewTpl(p=>({...p,timeTo:v}))}/>
-          <Lbl>Durata (es. 1 ora) — per impegni senza orario fisso</Lbl>
-          <input value={newTpl.duration} onChange={e=>setNewTpl(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora, 45 min..."
-            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <div>
+            <Lbl>Durata (hh:mm) — per impegni senza orario fisso</Lbl>
+            <TimeSelect value={newTpl.duration||""} onChange={v=>setNewTpl(p=>({...p,duration:v}))} color={P.mint} colorLight={P.mintLight}/>
+          </div>
+          <ColorPicker label="Colore predefinito del template" value={newTpl.color||P.mint} onChange={v=>setNewTpl(p=>({...p,color:v}))}/>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={()=>setShowTpl(false)} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer"}}>Chiudi</button>
             <button onClick={addTemplate} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600}}>+ Aggiungi</button>
@@ -757,6 +765,7 @@ export default function App(){
   const[db,setDb]=useState(null);
   const[user,setUser]=useState(null);
   const[users,setUsers]=useState({});
+  const[showSettings,setShowSettings]=useState(false);
 
   useEffect(()=>{
     try{
@@ -779,6 +788,14 @@ export default function App(){
     if(db)set(ref(db,`users/${name}`),u);
   };
 
+  const changeColor=(newColor)=>{
+    const u={...user,color:newColor};
+    setUser(u);
+    localStorage.setItem("puzzoni_user",JSON.stringify(u));
+    if(db)set(ref(db,`users/${user.name}`),u);
+    setShowSettings(false);
+  };
+
   if(!user)return<Onboarding onComplete={handleOnboarding}/>;
 
   const tabs=[
@@ -794,8 +811,23 @@ export default function App(){
           <h1 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:24,fontWeight:700,margin:0}}>Puzzoni 🐾</h1>
           <p style={{color:P.gray,fontSize:12,margin:0}}>Ciao {user.name}! 💕</p>
         </div>
-        <div style={{width:12,height:12,borderRadius:"50%",background:user.color,border:`2px solid ${P.dark}`}}/>
+        <button onClick={()=>setShowSettings(true)} title="Cambia colore" style={{width:28,height:28,borderRadius:"50%",background:user.color,border:`2px solid ${P.dark}`,cursor:"pointer",boxShadow:"0 2px 6px rgba(0,0,0,0.15)"}}/>
       </div>
+      {showSettings&&(
+        <div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center",background:"rgba(61,43,43,0.6)",backdropFilter:"blur(6px)"}} onClick={()=>setShowSettings(false)}>
+          <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",padding:"24px 20px 48px"}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:18,marginBottom:4,marginTop:0}}>Il tuo colore</h3>
+            <p style={{fontSize:13,color:P.gray,marginBottom:16}}>Verrà usato per i tuoi eventi nel calendario condiviso</p>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:24}}>
+              {[{name:"Rosa",value:"#F9A8C9"},{name:"Lavanda",value:"#C4B5E8"},{name:"Menta",value:"#A8D8C8"},{name:"Pesca",value:"#FDBA9B"},{name:"Cielo",value:"#A8C8E8"},{name:"Giallo",value:"#F9E4A8"},{name:"Rosso",value:"#F4A0A0"},{name:"Verde",value:"#A8E8B4"},{name:"Arancio",value:"#FDCB9B"},{name:"Viola",value:"#D4A8E8"}].map(c=>(
+                <button key={c.value} onClick={()=>changeColor(c.value)} title={c.name}
+                  style={{width:48,height:48,borderRadius:"50%",background:c.value,border:user.color===c.value?`3px solid ${P.dark}`:"3px solid transparent",cursor:"pointer",boxShadow:"0 2px 6px rgba(0,0,0,0.1)"}}/>
+              ))}
+            </div>
+            <button onClick={()=>setShowSettings(false)} style={{width:"100%",padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer",fontSize:14}}>Chiudi</button>
+          </div>
+        </div>
+      )}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {tab==="shopping"&&<ShoppingList db={db} user={user}/>}
         {tab==="todo"&&<TodoList db={db} user={user}/>}
