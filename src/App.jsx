@@ -544,7 +544,7 @@ function CalendarView({db,user,users}){
           {weekDays.map((d,i)=>(
             <button key={i} onClick={()=>openAdd(d)}
               style={{textAlign:"center",background:"none",border:"none",cursor:"pointer",padding:"2px 0"}}>
-              <p style={{fontSize:10,color:P.gray,margin:0}}>{DAYS_SHORT[d.getDay()]}</p>
+              <p style={{fontSize:10,color:P.gray,margin:0}}>{DAYS_SHORT[(d.getDay()+6)%7]}</p>
               <div style={{width:26,height:26,borderRadius:"50%",background:isSameDay(d,today)?P.mint:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"2px auto 0"}}>
                 <span style={{fontSize:12,fontWeight:600,color:isSameDay(d,today)?"#fff":P.dark}}>{d.getDate()}</span>
               </div>
@@ -570,7 +570,7 @@ function CalendarView({db,user,users}){
                 const dayEvs=getEvForDay(d);
                 return(
                   <button key={day} onClick={()=>setSelDay(isSel?null:d)} onDoubleClick={()=>openAdd(d)}
-                    style={{aspectRatio:"1",borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",border:isToday?`2px solid ${P.mint}`:"2px solid transparent",background:isSel?P.mint:"transparent",cursor:"pointer"}}>
+                    style={{aspectRatio:"1",borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",border:isToday?`2px solid ${P.mint}`:"2px solid transparent",background:isSel?P.mint:"transparent",cursor:"pointer",overflow:"hidden",minWidth:0}}>
                     <span style={{fontSize:12,fontWeight:500,color:isSel?"#fff":P.dark}}>{day}</span>
                     <div style={{display:"flex",flexDirection:"column",gap:1,marginTop:1,width:"100%",paddingHorizontal:1}}>
                       {dayEvs.slice(0,2).map((ev,di)=>(
