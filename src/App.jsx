@@ -115,7 +115,7 @@ function RecRow({value,onChange,color=P.mint,colorLight}){
 
 function BtnRow({onCancel,onSave,onDelete,saveLabel="Salva ✨"}){
   return(
-    <div style={{position:"fixed",bottom:65,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",gap:8,padding:"10px 20px",background:P.cream,borderTop:`1px solid ${P.roseLight}`,zIndex:200,boxSizing:"border-box"}}>
+    <div style={{position:"fixed",bottom:70,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,display:"flex",gap:8,padding:"10px 20px",background:P.cream,borderTop:`1px solid ${P.roseLight}`,zIndex:200,boxSizing:"border-box"}}>
       {onDelete&&<button onClick={onDelete} style={{padding:"12px 14px",borderRadius:20,border:"none",background:"#FFE8E8",color:"#C0392B",cursor:"pointer",fontSize:13,fontWeight:600}}>🗑</button>}
       <button onClick={onCancel} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer",fontSize:14}}>Annulla</button>
       <button onClick={onSave} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600,fontSize:14}}>{saveLabel}</button>
@@ -323,6 +323,7 @@ function TodoList({db,user}){
   const[rec,setRec]=useState("none");
   const[filter,setFilter]=useState("open");
   const[editing,setEditing]=useState(null);
+  const[showAddTodo,setShowAddTodo]=useState(false);
 
   useEffect(()=>{
     if(!db)return;
@@ -342,13 +343,7 @@ function TodoList({db,user}){
   return(
     <div style={{flex:1,overflowY:"auto",paddingBottom:160,minHeight:0}}>
       <div style={{padding:"16px 16px 0"}}>
-        <div style={{background:"#fff",borderRadius:20,padding:16,border:`1.5px solid ${P.lavLight}`,marginBottom:12}}>
-          <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()}
-            placeholder="Nome attività..." style={{width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box",marginBottom:8}}/>
-          <DateInp label="Data scadenza (opzionale)" value={date} onChange={setDate} color={P.lav} colorLight={P.lavLight}/>
-          <RecRow value={rec} onChange={setRec} color={P.lav} colorLight={P.lavLight}/>
-          <button onClick={addItem} style={{marginTop:10,width:"100%",padding:"10px 0",borderRadius:20,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.lav},${P.lavDark})`,color:"#fff"}}>+ Aggiungi attività</button>
-        </div>
+
         <div style={{display:"flex",gap:8,marginBottom:12}}>
           {["open","done"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,fontWeight:600,border:"none",cursor:"pointer",background:filter===f?P.lav:P.lavLight,color:filter===f?"#fff":P.gray}}>
@@ -383,6 +378,25 @@ function TodoList({db,user}){
           </div>
         ))}
       </div>
+      {/* Todo FAB */}
+      {!showAddTodo&&!editing&&(
+        <div style={{position:"fixed",bottom:90,right:16,zIndex:10}}>
+          <button onClick={()=>{setText("");setDate("");setRec("none");setShowAddTodo(true);}}
+            style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.lav},${P.lavDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(196,181,232,0.5)"}}>+</button>
+        </div>
+      )}
+
+      {/* Add Todo Modal */}
+      {showAddTodo&&(
+        <Modal title="✅ Nuova attività" onClose={()=>setShowAddTodo(false)}>
+          <Lbl>Nome attività</Lbl>
+          <input value={text} onChange={e=>setText(e.target.value)} autoFocus
+            placeholder="es. Chiamare il dentista..." style={{width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box"}}/>
+          <RecRow value={rec} onChange={setRec} color={P.lav} colorLight={P.lavLight}/>
+          <BtnRow onCancel={()=>setShowAddTodo(false)} onSave={()=>{addItem();setShowAddTodo(false);}}/>
+        </Modal>
+      )}
+
       {editing&&(
         <Modal title="✏️ Modifica attività" onClose={()=>setEditing(null)}>
           <Lbl>Nome attività</Lbl>
@@ -624,7 +638,7 @@ function CalendarView({db,user,users}){
                   ...weekDays.map((d,di)=>{
                     const dayEvs=allWE[di].filter(ev=>ev.timeFrom&&Math.floor(timeToMin(ev.timeFrom)/60)===(h+6));
                     return(
-                      <div key={"c"+h+di} onClick={()=>openAddForDay(d)} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,position:"relative",cursor:"pointer"}}>
+                      <div key={"c"+h+di} onClick={()=>openAddForDay(d)} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,borderLeft:`1px solid ${P.mintLight}`,position:"relative",cursor:"pointer"}}>
                         {dayEvs.map((ev,ei)=>{
                           const fromMin=timeToMin(ev.timeFrom)%60;
                           const durMin=ev.timeTo?timeToMin(ev.timeTo)-timeToMin(ev.timeFrom):60;
@@ -685,10 +699,12 @@ function CalendarView({db,user,users}){
       </div>
 
       {/* FABs */}
+      {!showAdd&&!showTpl&&!editEv&&(
       <div style={{position:"fixed",bottom:90,right:16,display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",zIndex:150}}>
         <button onClick={()=>setShowTpl(true)} style={{width:44,height:44,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}>📋</button>
         <button onClick={()=>{setNewEv({...emptyEv});setShowAdd(true);}} style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(91,191,160,0.4)"}}>+</button>
       </div>
+      )}
 
       {/* ADD EVENT MODAL */}
       {showAdd&&(
