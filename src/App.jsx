@@ -156,12 +156,12 @@ function TimeRow({label,from,to,onFrom,onTo,color=P.mint,colorLight}){
       <div style={{display:"flex",gap:10}}>
         <div style={{flex:1}}>
           <p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>Orario Da</p>
-          <input type="time" step="900" value={from} onChange={e=>{if(!e.target.value)return onFrom("");const[h,m]=e.target.value.split(":");const min=parseInt(m||0);const rounded=Math.round(min/15)*15;const fixedMin=rounded>=60?45:rounded;onFrom(`${h}:${String(fixedMin).padStart(2,"0")}`);}}
+          <input type="time" step="900" value={from} onChange={e=>onFrom(e.target.value)}
             style={{width:"100%",border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none",appearance:"none"}}/>
         </div>
         <div style={{flex:1}}>
           <p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>Orario A</p>
-          <input type="time" step="900" value={to} onChange={e=>{if(!e.target.value)return onTo("");const[h,m]=e.target.value.split(":");const min=parseInt(m||0);const rounded=Math.round(min/15)*15;const fixedMin=rounded>=60?45:rounded;onTo(`${h}:${String(fixedMin).padStart(2,"0")}`);}}
+          <input type="time" step="900" value={to} onChange={e=>onTo(e.target.value)}
             style={{width:"100%",border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none",appearance:"none"}}/>
         </div>
       </div>
@@ -633,32 +633,43 @@ function CalendarView({db,user,users}){
         {view==="week"&&(()=>{
           const weekDays=getWeekDays();
           const allWE=weekDays.map(d=>expandForMonth(d.getFullYear(),d.getMonth()).filter(ev=>isSameDay(ev.displayDate,d)));
+          const HOURS=Array.from({length:18},(_,h)=>h+6);
+          const totalH=HOURS.length*PX_PER_HOUR;
           return(
-            <div>
-              <div style={{display:"grid",gridTemplateColumns:"32px repeat(7,1fr)",gap:1,padding:"0 2px"}}>
-                {Array.from({length:18},(_,h)=>[
-                  <div key={"h"+(h+6)} style={{fontSize:9,color:P.gray,paddingTop:2,textAlign:"right",paddingRight:3,height:PX_PER_HOUR}}>{h+6}:00</div>,
-                  ...weekDays.map((d,di)=>{
-                    const dayEvs=allWE[di].filter(ev=>ev.timeFrom&&Math.floor(timeToMin(ev.timeFrom)/60)===(h+6));
+            <div style={{display:"flex",flexDirection:"row",padding:"0 2px"}}>
+              {/* Hour labels column */}
+              <div style={{width:32,flexShrink:0}}>
+                {HOURS.map(h=>(
+                  <div key={h} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,fontSize:9,color:P.gray,paddingTop:2,textAlign:"right",paddingRight:3,boxSizing:"border-box"}}>{h}:00</div>
+                ))}
+              </div>
+              {/* Day columns */}
+              {weekDays.map((d,di)=>(
+                <div key={di} style={{flex:1,position:"relative",borderLeft:`1px solid ${P.mintLight}`}} onClick={()=>{const h=6;const ev2={...emptyEv,date:toIsoDate(d),timeFrom:`${String(h).padStart(2,"0")}:00`};setNewEv(ev2);setShowAdd(true);}}>
+                  {HOURS.map(h=>(
+                    <div key={h} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,cursor:"pointer"}}
+                      onClick={e=>{e.stopPropagation();const ev2={...emptyEv,date:toIsoDate(d),timeFrom:`${String(h).padStart(2,"0")}:00`};setNewEv(ev2);setShowAdd(true);}}/>
+                  ))}
+                  {allWE[di].filter(ev=>ev.timeFrom).map((ev,ei)=>{
+                    const fromMin=timeToMin(ev.timeFrom);
+                    const toMin=ev.timeTo?timeToMin(ev.timeTo):fromMin+60;
+                    const startH=6;
+                    const top=(fromMin-startH*60)/60*PX_PER_HOUR;
+                    const height=Math.max(((toMin-fromMin)/60)*PX_PER_HOUR,16);
                     return(
-                      <div key={"c"+h+di} onClick={()=>{const ev2={...emptyEv,date:toIsoDate(d),timeFrom:`${String(h+6).padStart(2,"0")}:00`};setNewEv(ev2);setShowAdd(true);}} style={{height:PX_PER_HOUR,borderTop:`1px solid ${P.mintLight}`,borderLeft:`1px solid ${P.mintLight}`,position:"relative",cursor:"pointer"}}>
-                        {dayEvs.map((ev,ei)=>{
-                          const fromMin=timeToMin(ev.timeFrom)%60;
-                          const durMin=ev.timeTo?timeToMin(ev.timeTo)-timeToMin(ev.timeFrom):60;
-                          const top=(fromMin/60)*PX_PER_HOUR;
-                          const height=Math.max((durMin/60)*PX_PER_HOUR,16);
-                          return<div key={ei} onClick={e=>{e.stopPropagation();ev.owner===user.name&&setEditEv({...ev});}} style={{position:"absolute",top,left:1,right:1,height,background:getEvColor(ev),borderRadius:4,padding:"1px 3px",fontSize:8,color:"#fff",overflow:"hidden",cursor:"pointer",zIndex:2}}>{ev.text}</div>;
-                        })}
+                      <div key={ei} onClick={e=>{e.stopPropagation();ev.owner===user.name&&setEditEv({...ev});}}
+                        style={{position:"absolute",top,left:1,right:1,height,background:getEvColor(ev),borderRadius:4,padding:"1px 3px",fontSize:8,color:"#fff",overflow:"hidden",cursor:ev.owner===user.name?"pointer":"default",zIndex:2}}>
+                        {ev.text}
                       </div>
                     );
-                  })
-                ])}
-              </div>
+                  })}
+                </div>
+              ))}
             </div>
           );
         })()}
 
-      </div>
+      </div>iv>
 
       {/* FABs */}
       {!showAdd&&!showTpl&&!editEv&&(
