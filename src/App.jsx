@@ -83,7 +83,7 @@ function Modal({onClose,children,title}){
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div style={{width:"100%",maxWidth:430,background:P.cream,borderRadius:"28px 28px 0 0",display:"flex",flexDirection:"column",maxHeight:"90vh"}}
         onClick={e=>e.stopPropagation()}>
-        <div style={{overflowY:"auto",flex:1,padding:"24px 20px 100px",WebkitOverflowScrolling:"touch"}}>
+        <div style={{overflowY:"auto",flex:1,padding:"24px 20px 160px",WebkitOverflowScrolling:"touch"}}>
           {title&&<h3 style={{fontFamily:"'Playfair Display',serif",color:P.dark,fontSize:18,marginBottom:12,marginTop:0}}>{title}</h3>}
           {children}
         </div>
