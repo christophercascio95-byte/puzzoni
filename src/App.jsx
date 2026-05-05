@@ -36,7 +36,7 @@ const EVENT_COLORS=[
 
 const MONTHS=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const MONTHS_SHORT=["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
-const DAYS_SHORT=["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
+const DAYS_SHORT=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 const REC_LABELS={none:"Una volta",daily:"Ogni giorno",weekly:"Ogni settimana",monthly:"Ogni mese"};
 const PX_PER_HOUR=64;
 const START_HOUR=6;
@@ -490,7 +490,7 @@ function CalendarView({db,user,users}){
   const getEvForDay=(d)=>monthEvs.filter(ev=>isSameDay(ev.displayDate,d));
   const today=new Date();
   const navigate=(dir)=>{const d=new Date(curDate);if(view==="month")d.setMonth(d.getMonth()+dir);else d.setDate(d.getDate()+dir*7);setCurDate(d);};
-  const getWeekDays=()=>{const d=new Date(curDate);d.setDate(d.getDate()-d.getDay());return Array.from({length:7},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd;});};
+  const getWeekDays=()=>{const d=new Date(curDate);const day=d.getDay();const diff=(day===0)?-6:1-day;d.setDate(d.getDate()+diff);return Array.from({length:7},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd;});};
   const headerLabel=()=>{
     if(view==="month")return`${MONTHS[month]} ${year}`;
     const w=getWeekDays();return`${w[0].getDate()} - ${w[6].getDate()} ${MONTHS_SHORT[w[6].getMonth()]}`;
@@ -560,10 +560,10 @@ function CalendarView({db,user,users}){
         {view==="month"&&(
           <div style={{padding:"0 10px 100px"}}>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginTop:8,marginBottom:4}}>
-              {["D","L","M","M","G","V","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:11,fontWeight:600,color:P.gray,padding:"3px 0"}}>{d}</div>)}
+              {["L","M","M","G","V","S","D"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:11,fontWeight:600,color:P.gray,padding:"3px 0"}}>{d}</div>)}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-              {Array(new Date(year,month,1).getDay()).fill(null).map((_,i)=><div key={"e"+i}/>)}
+              {Array((new Date(year,month,1).getDay()+6)%7).fill(null).map((_,i)=><div key={"e"+i}/>)}
               {Array(new Date(year,month+1,0).getDate()).fill(null).map((_,i)=>{
                 const day=i+1,d=new Date(year,month,day);
                 const isToday=isSameDay(d,today),isSel=selDay&&isSameDay(d,selDay);
