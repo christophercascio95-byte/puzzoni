@@ -136,20 +136,44 @@ function DateInp({label,value,onChange,color=P.mint,colorLight}){
   );
 }
 
+function TimeSelect({label,value,onChange,color=P.mint,colorLight}){
+  const hours=Array.from({length:24},(_,i)=>i);
+  const mins=[0,15,30,45];
+  const hVal=value?parseInt(value.split(":")[0]):"";
+  const mVal=value?parseInt(value.split(":")[1]):"";
+  const setH=(h)=>{
+    if(h==="")return onChange("");
+    const m=mVal!==""?mVal:0;
+    onChange(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+  };
+  const setM=(m)=>{
+    if(hVal==="")return;
+    onChange(`${String(hVal).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+  };
+  const selStyle={flex:1,border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 8px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,WebkitAppearance:"none",appearance:"none"};
+  return(
+    <div>
+      {label&&<p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>{label}</p>}
+      <div style={{display:"flex",gap:6}}>
+        <select value={hVal} onChange={e=>setH(e.target.value===""?"":parseInt(e.target.value))} style={selStyle}>
+          <option value="">--</option>
+          {hours.map(h=><option key={h} value={h}>{String(h).padStart(2,"0")}</option>)}
+        </select>
+        <select value={mVal!==""?mVal:""} onChange={e=>setM(parseInt(e.target.value))} style={selStyle} disabled={hVal===""}>
+          <option value="">--</option>
+          {mins.map(m=><option key={m} value={m}>{String(m).padStart(2,"0")}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function TimeRow({label,from,to,onFrom,onTo,color=P.mint,colorLight}){
   return(
     <div>{label&&<Lbl>{label}</Lbl>}
       <div style={{display:"flex",gap:10}}>
-        <div style={{flex:1}}>
-          <p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>Orario Da</p>
-          <input type="time" step="900" value={from} onChange={e=>onFrom(e.target.value)}
-            style={{width:"100%",border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none",appearance:"none"}}/>
-        </div>
-        <div style={{flex:1}}>
-          <p style={{fontSize:11,color:P.gray,margin:"0 0 4px",fontWeight:600}}>Orario A</p>
-          <input type="time" step="900" value={to} onChange={e=>onTo(e.target.value)}
-            style={{width:"100%",border:`1.5px solid ${color}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:colorLight||P.mintLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none",appearance:"none"}}/>
-        </div>
+        <TimeSelect label="Orario Da" value={from} onChange={onFrom} color={color} colorLight={colorLight}/>
+        <TimeSelect label="Orario A" value={to} onChange={onTo} color={color} colorLight={colorLight}/>
       </div>
     </div>
   );
@@ -632,9 +656,21 @@ function CalendarView({db,user,users}){
             style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <DateInp label="Data" value={newEv.date} onChange={v=>setNewEv(p=>({...p,date:v}))}/>
           <TimeRow label="Orario fisso (lascia vuoto per tutto il giorno)" from={newEv.timeFrom} to={newEv.timeTo} onFrom={v=>setNewEv(p=>({...p,timeFrom:v}))} onTo={v=>setNewEv(p=>({...p,timeTo:v}))}/>
-          <Lbl>Durata (es. 1 ora) — alternativa agli orari fissi</Lbl>
-          <input value={newEv.duration} onChange={e=>setNewEv(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora, 30 min..."
-            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <div>
+            <Lbl>Durata (hh:mm) — compila questo OPPURE Orario A</Lbl>
+            <TimeSelect value={newEv.duration} onChange={v=>{
+              setNewEv(p=>{
+                const next={...p,duration:v};
+                if(v&&p.timeFrom){
+                  const[h,m]=p.timeFrom.split(":").map(Number);
+                  const[dh,dm]=v.split(":").map(Number);
+                  const endMin=h*60+m+dh*60+dm;
+                  next.timeTo=`${String(Math.floor(endMin/60)%24).padStart(2,"0")}:${String(endMin%60).padStart(2,"0")}`;
+                }
+                return next;
+              });
+            }} color={P.mint} colorLight={P.mintLight}/>
+          </div>
           <RecRow value={newEv.recurrence} onChange={v=>setNewEv(p=>({...p,recurrence:v}))}/>
           <div><Lbl>Visibilità</Lbl>
             <div style={{display:"flex",gap:8}}>
@@ -686,9 +722,21 @@ function CalendarView({db,user,users}){
             style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
           <DateInp label="Data" value={editEv.date||""} onChange={v=>setEditEv(p=>({...p,date:v}))}/>
           <TimeRow label="Orario fisso" from={editEv.timeFrom||""} to={editEv.timeTo||""} onFrom={v=>setEditEv(p=>({...p,timeFrom:v}))} onTo={v=>setEditEv(p=>({...p,timeTo:v}))}/>
-          <Lbl>Durata</Lbl>
-          <input value={editEv.duration||""} onChange={e=>setEditEv(p=>({...p,duration:e.target.value}))} placeholder="es. 1 ora..."
-            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <div>
+            <Lbl>Durata (hh:mm) — compila questo OPPURE Orario A</Lbl>
+            <TimeSelect value={editEv.duration||""} onChange={v=>{
+              setEditEv(p=>{
+                const next={...p,duration:v};
+                if(v&&p.timeFrom){
+                  const[h,m]=p.timeFrom.split(":").map(Number);
+                  const[dh,dm]=v.split(":").map(Number);
+                  const endMin=h*60+m+dh*60+dm;
+                  next.timeTo=`${String(Math.floor(endMin/60)%24).padStart(2,"0")}:${String(endMin%60).padStart(2,"0")}`;
+                }
+                return next;
+              });
+            }} color={P.mint} colorLight={P.mintLight}/>
+          </div>
           <RecRow value={editEv.recurrence||"none"} onChange={v=>setEditEv(p=>({...p,recurrence:v}))}/>
           <div><Lbl>Visibilità</Lbl>
             <div style={{display:"flex",gap:8}}>
