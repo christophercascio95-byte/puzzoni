@@ -428,7 +428,8 @@ function CalendarView({db,user,users}){
   const[editEv,setEditEv]=useState(null);
   const emptyEv={text:"",date:"",timeFrom:"",timeTo:"",duration:"",recurrence:"none",isShared:true,color:""};
   const[newEv,setNewEv]=useState({...emptyEv});
-  const[newTpl,setNewTpl]=useState({name:"",timeFrom:"",timeTo:"",duration:"",color:""});
+  const[newTpl,setNewTpl]=useState({name:"",timeFrom:"",timeTo:"",duration:"",color:"",pinned:false});
+  const[editTpl,setEditTpl]=useState(null);
 
   useEffect(()=>{
     if(!db)return;
@@ -445,15 +446,15 @@ function CalendarView({db,user,users}){
 
   const addEvent=()=>{
     if(!newEv.text.trim()||!newEv.date||!db)return;
-    const evColor=newEv.isShared?user.color:(newEv.color||user.color);
-    push(ref(db,"calendarEvents"),{...newEv,color:evColor,owner:user.name,ownerColor:user.color,createdAt:Date.now()});
+    const evColor=newEv.color||user.color;
+    push(ref(db,"calendarEvents"),{...newEv,color:evColor,owner:user.name,ownerColor:user.color,pinned:newEv.pinned||false,createdAt:Date.now()});
     setNewEv({...emptyEv});setShowAdd(false);
   };
 
   const saveEditEv=()=>{
     if(!editEv||!db)return;
-    const evColor=editEv.isShared?user.color:(editEv.color||user.color);
-    update(ref(db,`calendarEvents/${editEv.id}`),{text:editEv.text,date:editEv.date,timeFrom:editEv.timeFrom,timeTo:editEv.timeTo,duration:editEv.duration,recurrence:editEv.recurrence,isShared:editEv.isShared,color:evColor});
+    const evColor=editEv.color||user.color;
+    update(ref(db,`calendarEvents/${editEv.id}`),{text:editEv.text,date:editEv.date,timeFrom:editEv.timeFrom,timeTo:editEv.timeTo,duration:editEv.duration,recurrence:editEv.recurrence,isShared:editEv.isShared,color:evColor,pinned:editEv.pinned||false});
     setEditEv(null);
   };
 
@@ -465,7 +466,12 @@ function CalendarView({db,user,users}){
 
   const deleteEvent=(id)=>{remove(ref(db,`calendarEvents/${id}`));if(editEv?.id===id)setEditEv(null);};
   const deleteTemplate=(id)=>remove(ref(db,`templates/${user.name}/${id}`));
-  const applyTemplate=(t)=>{setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||"",color:t.color||"",isShared:false}));setShowTpl(false);setShowAdd(true);};
+  const saveEditTpl=()=>{
+    if(!editTpl||!db)return;
+    update(ref(db,`templates/${user.name}/${editTpl.id}`),{name:editTpl.name,timeFrom:editTpl.timeFrom,timeTo:editTpl.timeTo,duration:editTpl.duration,color:editTpl.color||P.mint,pinned:editTpl.pinned||false});
+    setEditTpl(null);
+  };
+  const applyTemplate=(t)=>{setNewEv(p=>({...p,text:t.name,timeFrom:t.timeFrom||"",timeTo:t.timeTo||"",duration:t.duration||"",color:t.color||"",isShared:false,pinned:t.pinned||false}));setShowTpl(false);setShowAdd(true);};
   const getEvColor=(ev)=>ev.color||ev.ownerColor||P.mint;
   const getUserColor=(name)=>{const u=Object.values(users||{}).find(u=>u.name===name);return u?.color||P.mint;};
 
@@ -498,10 +504,13 @@ function CalendarView({db,user,users}){
 
   const EventCard=({ev})=>(
     <div onClick={()=>ev.owner===user.name&&setEditEv({...ev})}
-      style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${P.mintLight}`,cursor:ev.owner===user.name?"pointer":"default"}}>
+      style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${ev.pinned?"#F4A0A0":P.mintLight}`,cursor:ev.owner===user.name?"pointer":"default"}}>
       <div style={{width:10,height:10,borderRadius:"50%",background:getEvColor(ev),flexShrink:0}}/>
       <div style={{flex:1}}>
-        <p style={{fontSize:13,fontWeight:500,color:P.dark,margin:0}}>{ev.text}</p>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          {ev.pinned&&<span style={{fontSize:10}}>📌</span>}
+          <p style={{fontSize:13,fontWeight:500,color:P.dark,margin:0}}>{ev.text}</p>
+        </div>
         <p style={{fontSize:11,color:P.gray,margin:0}}>{ev.owner}{ev.timeFrom?` · ${ev.timeFrom}${ev.timeTo?` - ${ev.timeTo}`:""}`:""}{ev.duration?` · ⏱ ${ev.duration}`:""}</p>
       </div>
       {ev.owner===user.name&&<span style={{fontSize:14}}>✏️</span>}
@@ -572,10 +581,10 @@ function CalendarView({db,user,users}){
                   <button key={day} onClick={()=>setSelDay(isSel?null:d)} onDoubleClick={()=>openAdd(d)}
                     style={{aspectRatio:"1",borderRadius:10,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",border:isToday?`2px solid ${P.mint}`:"2px solid transparent",background:isSel?P.mint:"transparent",cursor:"pointer",overflow:"hidden",minWidth:0}}>
                     <span style={{fontSize:12,fontWeight:500,color:isSel?"#fff":P.dark}}>{day}</span>
-                    <div style={{display:"flex",flexDirection:"column",gap:1,marginTop:1,width:"100%",paddingHorizontal:1}}>
-                      {dayEvs.slice(0,2).map((ev,di)=>(
-                        <div key={di} style={{background:isSel?"rgba(255,255,255,0.4)":getEvColor(ev),borderRadius:3,padding:"0 2px",fontSize:7,color:isSel?"#fff":"#3D2B2B",fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"100%",lineHeight:"11px"}}>
-                          {ev.text}
+                    <div style={{display:"flex",flexDirection:"column",gap:1,marginTop:1,width:"100%"}}>
+                      {[...dayEvs.filter(e=>e.pinned),...dayEvs.filter(e=>!e.pinned)].slice(0,2).map((ev,di)=>(
+                        <div key={di} style={{background:isSel?"rgba(255,255,255,0.4)":getEvColor(ev),borderRadius:3,padding:"0 2px",fontSize:7,color:isSel?"#fff":"#3D2B2B",fontWeight:600,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"100%",lineHeight:"11px",border:ev.pinned&&!isSel?"1px solid rgba(0,0,0,0.2)":"none"}}>
+                          {ev.pinned?"📌":""}{ev.text}
                         </div>
                       ))}
                       {dayEvs.length>2&&<div style={{fontSize:7,color:isSel?"#fff":P.gray}}>+{dayEvs.length-2}</div>}
@@ -588,7 +597,6 @@ function CalendarView({db,user,users}){
               <div style={{marginTop:12}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                   <p style={{fontSize:12,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,margin:0}}>{selDay.getDate()} {MONTHS[selDay.getMonth()]}</p>
-                  <button onClick={()=>openAdd(selDay)} style={{padding:"5px 12px",borderRadius:14,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff"}}>+ Evento</button>
                 </div>
                 {getEvForDay(selDay).length===0
                   ?<p style={{fontSize:13,color:P.gray,textAlign:"center",padding:"16px 0"}}>Nessun evento 🌸</p>
@@ -637,7 +645,7 @@ function CalendarView({db,user,users}){
       {!anyModalOpen&&(
         <div style={{position:"fixed",bottom:90,right:16,display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",zIndex:10}}>
           <button onClick={()=>setShowTpl(true)} style={{width:44,height:44,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}>📋</button>
-          <button onClick={()=>{setNewEv({...emptyEv});setShowAdd(true);}} style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(91,191,160,0.4)"}}>+</button>
+          <button onClick={()=>{if(view==="month"&&selDay){openAdd(selDay);}else{setNewEv({...emptyEv});setShowAdd(true);}}} style={{width:52,height:52,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,cursor:"pointer",fontSize:22,color:"#fff",boxShadow:"0 4px 12px rgba(91,191,160,0.4)"}}>+</button>
         </div>
       )}
 
@@ -683,7 +691,18 @@ function CalendarView({db,user,users}){
               <button onClick={()=>setNewEv(p=>({...p,isShared:false}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!newEv.isShared?P.mint:P.mintLight,color:!newEv.isShared?"#fff":P.gray}}>👤 Solo mio</button>
             </div>
           </div>
-          {!newEv.isShared&&<ColorPicker label="Colore evento" value={newEv.color||user.color} onChange={v=>setNewEv(p=>({...p,color:v}))}/>}
+          <ColorPicker label="Colore evento (solo calendario personale)" value={newEv.color||user.color} onChange={v=>setNewEv(p=>({...p,color:v}))}/>
+          <div>
+            <Lbl>Evento improrogabile (sempre visibile)</Lbl>
+            <button onClick={()=>setNewEv(p=>({...p,pinned:!p.pinned}))}
+              style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",borderRadius:12,border:`1.5px solid ${newEv.pinned?"#F4A0A0":P.mintLight}`,background:newEv.pinned?"#FFE8E8":"#fff",cursor:"pointer"}}>
+              <span style={{fontSize:18}}>{newEv.pinned?"📌":"📍"}</span>
+              <div style={{textAlign:"left"}}>
+                <p style={{fontSize:13,fontWeight:600,color:P.dark,margin:0}}>{newEv.pinned?"Improrogabile attivo":"Non improrogabile"}</p>
+                <p style={{fontSize:11,color:P.gray,margin:0}}>{newEv.pinned?"Appare sempre in cima nel calendario":"Tocca per renderlo improrogabile"}</p>
+              </div>
+            </button>
+          </div>
           <BtnRow onCancel={()=>setShowAdd(false)} onSave={addEvent}/>
         </Modal>
       )}
@@ -696,11 +715,13 @@ function CalendarView({db,user,users}){
             :templates.map(t=>(
               <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${P.mintLight}`}}>
                 <div style={{width:12,height:12,borderRadius:"50%",background:t.color||P.mint,flexShrink:0,border:"1.5px solid rgba(0,0,0,0.1)"}}/>
+                {t.pinned&&<span style={{fontSize:10}}>📌</span>}
                 <div style={{flex:1}}>
                   <p style={{fontSize:14,fontWeight:500,color:P.dark,margin:0}}>{t.name}</p>
                   <p style={{fontSize:12,color:P.gray,margin:0}}>{t.timeFrom?`🕐 ${t.timeFrom}${t.timeTo?` → ${t.timeTo}`:""}`:""}{t.duration?` · ⏱ ${t.duration}`:""}</p>
                 </div>
                 <button onClick={()=>applyTemplate(t)} style={{padding:"5px 10px",borderRadius:12,fontSize:12,border:`1px solid ${P.mint}`,background:P.mintLight,cursor:"pointer",color:P.dark}}>Usa</button>
+                <button onClick={()=>setEditTpl({...t})} style={{border:"none",background:"none",cursor:"pointer",fontSize:18}}>✏️</button>
                 <button onClick={()=>deleteTemplate(t.id)} style={{border:"none",background:"none",cursor:"pointer",fontSize:18}}>🗑</button>
               </div>
             ))
@@ -715,10 +736,42 @@ function CalendarView({db,user,users}){
             <TimeSelect value={newTpl.duration||""} onChange={v=>setNewTpl(p=>({...p,duration:v}))} color={P.mint} colorLight={P.mintLight}/>
           </div>
           <ColorPicker label="Colore predefinito del template" value={newTpl.color||P.mint} onChange={v=>setNewTpl(p=>({...p,color:v}))}/>
+          <div>
+            <Lbl>Template improrogabile (eventi sempre visibili)</Lbl>
+            <button onClick={()=>setNewTpl(p=>({...p,pinned:!p.pinned}))}
+              style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",borderRadius:12,border:`1.5px solid ${newTpl.pinned?"#F4A0A0":P.mintLight}`,background:newTpl.pinned?"#FFE8E8":"#fff",cursor:"pointer"}}>
+              <span style={{fontSize:18}}>{newTpl.pinned?"📌":"📍"}</span>
+              <p style={{fontSize:13,fontWeight:600,color:P.dark,margin:0}}>{newTpl.pinned?"Improrogabile":"Non improrogabile"}</p>
+            </button>
+          </div>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <button onClick={()=>setShowTpl(false)} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer"}}>Chiudi</button>
             <button onClick={addTemplate} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:`linear-gradient(135deg,${P.mint},${P.mintDark})`,color:"#fff",cursor:"pointer",fontWeight:600}}>+ Aggiungi</button>
           </div>
+        </Modal>
+      )}
+
+      {/* EDIT TEMPLATE MODAL */}
+      {editTpl&&(
+        <Modal title="✏️ Modifica template" onClose={()=>setEditTpl(null)}>
+          <Lbl>Nome impegno</Lbl>
+          <input value={editTpl.name} onChange={e=>setEditTpl(p=>({...p,name:e.target.value}))}
+            style={{width:"100%",border:`1.5px solid ${P.mint}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.mintLight,color:P.dark,boxSizing:"border-box"}}/>
+          <TimeRow label="Orario fisso (opzionale)" from={editTpl.timeFrom||""} to={editTpl.timeTo||""} onFrom={v=>setEditTpl(p=>({...p,timeFrom:v}))} onTo={v=>setEditTpl(p=>({...p,timeTo:v}))}/>
+          <div>
+            <Lbl>Durata (hh:mm)</Lbl>
+            <TimeSelect value={editTpl.duration||""} onChange={v=>setEditTpl(p=>({...p,duration:v}))} color={P.mint} colorLight={P.mintLight}/>
+          </div>
+          <ColorPicker label="Colore predefinito" value={editTpl.color||P.mint} onChange={v=>setEditTpl(p=>({...p,color:v}))}/>
+          <div>
+            <Lbl>Evento improrogabile</Lbl>
+            <button onClick={()=>setEditTpl(p=>({...p,pinned:!p.pinned}))}
+              style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",borderRadius:12,border:`1.5px solid ${editTpl.pinned?"#F4A0A0":P.mintLight}`,background:editTpl.pinned?"#FFE8E8":"#fff",cursor:"pointer"}}>
+              <span style={{fontSize:18}}>{editTpl.pinned?"📌":"📍"}</span>
+              <p style={{fontSize:13,fontWeight:600,color:P.dark,margin:0}}>{editTpl.pinned?"Improrogabile":"Non improrogabile"}</p>
+            </button>
+          </div>
+          <BtnRow onCancel={()=>setEditTpl(null)} onSave={saveEditTpl} onDelete={()=>{deleteTemplate(editTpl.id);setEditTpl(null);}}/>
         </Modal>
       )}
 
@@ -752,7 +805,18 @@ function CalendarView({db,user,users}){
               <button onClick={()=>setEditEv(p=>({...p,isShared:false}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!editEv.isShared?P.mint:P.mintLight,color:!editEv.isShared?"#fff":P.gray}}>👤 Solo mio</button>
             </div>
           </div>
-          {!editEv.isShared&&<ColorPicker label="Colore evento" value={editEv.color||user.color} onChange={v=>setEditEv(p=>({...p,color:v}))}/>}
+          <ColorPicker label="Colore evento" value={editEv.color||user.color} onChange={v=>setEditEv(p=>({...p,color:v}))}/>
+          <div>
+            <Lbl>Evento improrogabile (sempre visibile)</Lbl>
+            <button onClick={()=>setEditEv(p=>({...p,pinned:!p.pinned}))}
+              style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",borderRadius:12,border:`1.5px solid ${editEv.pinned?"#F4A0A0":P.mintLight}`,background:editEv.pinned?"#FFE8E8":"#fff",cursor:"pointer"}}>
+              <span style={{fontSize:18}}>{editEv.pinned?"📌":"📍"}</span>
+              <div style={{textAlign:"left"}}>
+                <p style={{fontSize:13,fontWeight:600,color:P.dark,margin:0}}>{editEv.pinned?"Improrogabile attivo":"Non improrogabile"}</p>
+                <p style={{fontSize:11,color:P.gray,margin:0}}>{editEv.pinned?"Appare sempre in cima nel calendario":"Tocca per renderlo improrogabile"}</p>
+              </div>
+            </button>
+          </div>
           <BtnRow onCancel={()=>setEditEv(null)} onSave={saveEditEv} onDelete={()=>{deleteEvent(editEv.id);setEditEv(null);}}/>
         </Modal>
       )}
