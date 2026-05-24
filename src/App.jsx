@@ -206,58 +206,77 @@ function Onboarding({onComplete}){
 function ShoppingList({db}){
   const[items,setItems]=useState([]);
   const[saved,setSaved]=useState([]);
+  const[categories,setCategories]=useState([]);
   const[text,setText]=useState("");
   const[qty,setQty]=useState("");
+  const[cat,setCat]=useState("");
   const[rec,setRec]=useState("none");
-  const[sugg,setSugg]=useState([]);
+  const[sortBy,setSortBy]=useState("none"); // none | name | category
   const[editing,setEditing]=useState(null);
+  const[showCatInput,setShowCatInput]=useState(false);
   const inputRef=useRef();
 
   useEffect(()=>{
     if(!db)return;
     const u1=onValue(ref(db,"shopping"),snap=>{const d=snap.val()||{};setItems(Object.entries(d).map(([id,v])=>({id,...v})));});
-    const u2=onValue(ref(db,"shoppingArticles"),snap=>{const d=snap.val()||{};setSaved(Object.entries(d).map(([id,v])=>({id,...v})).sort((a,b)=>(b.count||0)-(a.count||0)));});
+    const u2=onValue(ref(db,"shoppingCategories"),snap=>{const d=snap.val()||[];setCategories(Array.isArray(d)?d:Object.values(d));});
     return()=>{u1();u2();};
   },[db]);
 
-  useEffect(()=>{
-    if(!text.trim()){setSugg([]);return;}
-    setSugg(saved.filter(a=>a.name.toLowerCase().includes(text.toLowerCase())&&a.name.toLowerCase()!==text.toLowerCase()));
-  },[text,saved]);
-
   const addItem=()=>{
     if(!text.trim()||!db)return;
-    push(ref(db,"shopping"),{text:text.trim(),qty:qty||null,recurrence:rec,checked:false,createdAt:Date.now()});
-    const ex=saved.find(a=>a.name.toLowerCase()===text.trim().toLowerCase());
-    if(ex)update(ref(db,`shoppingArticles/${ex.id}`),{count:(ex.count||0)+1});
-    else push(ref(db,"shoppingArticles"),{name:text.trim(),count:1});
-    setText("");setQty("");setRec("none");setSugg([]);
+    push(ref(db,"shopping"),{text:text.trim(),qty:qty||null,category:cat||null,recurrence:rec,checked:false,frequent:false,createdAt:Date.now()});
+    // Save new category if not already present
+    if(cat&&!categories.includes(cat)){
+      const newCats=[...categories,cat];
+      set(ref(db,"shoppingCategories"),newCats);
+    }
+    setText("");setQty("");setCat("");setRec("none");
   };
+
   const toggleItem=(item)=>{if(!db)return;update(ref(db,`shopping/${item.id}`),{checked:!item.checked,...(!item.checked&&item.recurrence!=="none"?{lastCompleted:Date.now()}:{})});};
-  const saveEdit=()=>{if(!editing||!db)return;update(ref(db,`shopping/${editing.id}`),{text:editing.text,qty:editing.qty||null,recurrence:editing.recurrence||"none"});setEditing(null);};
+  const toggleFrequent=(item)=>{if(!db)return;update(ref(db,`shopping/${item.id}`),{frequent:!item.frequent});};
+  const saveEdit=()=>{
+    if(!editing||!db)return;
+    if(editing.category&&!categories.includes(editing.category)){
+      set(ref(db,"shoppingCategories"),[...categories,editing.category]);
+    }
+    update(ref(db,`shopping/${editing.id}`),{text:editing.text,qty:editing.qty||null,category:editing.category||null,recurrence:editing.recurrence||"none",frequent:editing.frequent||false});
+    setEditing(null);
+  };
   const deleteItem=(id)=>{remove(ref(db,`shopping/${id}`));if(editing?.id===id)setEditing(null);};
-  const deleteSaved=(id)=>remove(ref(db,`shoppingArticles/${id}`));
-  const unchecked=items.filter(i=>!i.checked);
-  const checked=items.filter(i=>i.checked);
+
+  const sortItems=(list)=>{
+    if(sortBy==="name")return[...list].sort((a,b)=>a.text.localeCompare(b.text,"it"));
+    if(sortBy==="category")return[...list].sort((a,b)=>(a.category||"zzz").localeCompare(b.category||"zzz","it"));
+    return list;
+  };
+
+  const unchecked=sortItems(items.filter(i=>!i.checked));
+  const checked=sortItems(items.filter(i=>i.checked));
+  const frequentItems=items.filter(i=>i.frequent);
 
   const Row=({item})=>(
     <div style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:16,padding:"11px 14px",border:`1.5px solid ${P.roseLight}`,opacity:item.checked?0.65:1,marginBottom:8}}>
       <button onClick={()=>toggleItem(item)} style={{width:26,height:26,borderRadius:"50%",border:`2px solid ${P.rose}`,background:item.checked?P.rose:"none",cursor:"pointer",flexShrink:0,color:"#fff",fontSize:13}}>{item.checked?"✓":""}</button>
       <div style={{flex:1,minWidth:0}}>
         <p style={{fontSize:14,fontWeight:500,color:P.dark,margin:0,textDecoration:item.checked?"line-through":"none"}}>{item.text}</p>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:2}}>
           {item.qty&&<span style={{fontSize:11,color:P.gray}}>{item.qty}</span>}
-          {item.recurrence&&item.recurrence!=="none"&&<span style={{fontSize:11,color:P.roseDark}}>🔁 {REC_LABELS[item.recurrence]}</span>}
+          {item.category&&<span style={{fontSize:11,background:P.lavLight,color:P.lavDark,borderRadius:8,padding:"0 6px"}}>{item.category}</span>}
+          {item.recurrence&&item.recurrence!=="none"&&<span style={{fontSize:11,color:P.roseDark}}>🔁</span>}
+          {item.frequent&&<span style={{fontSize:11,color:"#F4A020"}}>⭐</span>}
         </div>
       </div>
-      <button onClick={()=>setEditing({...item})} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 4px"}}>✏️</button>
-      <button onClick={()=>deleteItem(item.id)} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 4px"}}>🗑</button>
+      <button onClick={()=>setEditing({...item})} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 2px"}}>✏️</button>
+      <button onClick={()=>deleteItem(item.id)} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,padding:"0 2px"}}>🗑</button>
     </div>
   );
 
   return(
     <div style={{flex:1,overflowY:"auto",paddingBottom:100}}>
       <div style={{padding:"16px 16px 0"}}>
+        {/* Add box */}
         <div style={{background:"#fff",borderRadius:20,padding:16,border:`1.5px solid ${P.roseLight}`,marginBottom:12}}>
           <div style={{display:"flex",gap:8,marginBottom:8}}>
             <input ref={inputRef} value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem()}
@@ -265,14 +284,21 @@ function ShoppingList({db}){
             <input value={qty} onChange={e=>setQty(e.target.value)} placeholder="Qtà"
               style={{width:64,border:`1.5px solid ${P.peach}`,borderRadius:12,padding:"10px 8px",fontSize:15,outline:"none",background:P.peachLight,color:P.dark}}/>
           </div>
-          {sugg.length>0&&(
-            <div style={{background:P.roseLight,borderRadius:12,marginBottom:8}}>
-              {sugg.slice(0,4).map(s=>(
-                <button key={s.id} onClick={()=>{setText(s.name);setSugg([]);inputRef.current?.focus();}}
-                  style={{display:"block",width:"100%",textAlign:"left",padding:"8px 12px",background:"none",border:"none",cursor:"pointer",fontSize:13,color:P.dark}}>
-                  🔍 {s.name} <span style={{color:P.gray,fontSize:11}}>({s.count}x)</span>
-                </button>
-              ))}
+          {/* Category selector */}
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <select value={cat} onChange={e=>setCat(e.target.value)}
+              style={{flex:1,border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"8px 12px",fontSize:14,outline:"none",background:P.lavLight,color:cat?P.dark:P.gray,WebkitAppearance:"none"}}>
+              <option value="">Categoria (opzionale)</option>
+              {categories.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+            <button onClick={()=>setShowCatInput(!showCatInput)}
+              style={{padding:"8px 12px",borderRadius:12,fontSize:13,border:`1.5px solid ${P.lav}`,background:P.lavLight,cursor:"pointer",color:P.lavDark,fontWeight:600}}>+Cat</button>
+          </div>
+          {showCatInput&&(
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <input placeholder="Nuova categoria..." value={cat} onChange={e=>setCat(e.target.value)}
+                style={{flex:1,border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"8px 12px",fontSize:14,outline:"none",background:P.lavLight,color:P.dark}}/>
+              <button onClick={()=>setShowCatInput(false)} style={{padding:"8px 12px",borderRadius:12,fontSize:12,border:"none",background:P.lavLight,cursor:"pointer",color:P.gray}}>OK</button>
             </div>
           )}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
@@ -282,26 +308,50 @@ function ShoppingList({db}){
             <button onClick={addItem} style={{marginLeft:"auto",padding:"6px 18px",borderRadius:20,fontSize:13,fontWeight:600,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${P.rose},${P.roseDark})`,color:"#fff"}}>+ Aggiungi</button>
           </div>
         </div>
-        {saved.length>0&&(
+
+        {/* Sort bar */}
+        <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
+          <span style={{fontSize:11,color:P.gray,fontWeight:600}}>Ordina:</span>
+          {["none","name","category"].map(s=>(
+            <button key={s} onClick={()=>setSortBy(s)} style={{padding:"4px 10px",borderRadius:16,fontSize:11,fontWeight:500,border:"none",cursor:"pointer",background:sortBy===s?P.rose:P.roseLight,color:sortBy===s?"#fff":P.gray}}>
+              {s==="none"?"Default":s==="name"?"A→Z":"Categoria"}
+            </button>
+          ))}
+        </div>
+
+        {/* Frequent items section */}
+        {frequentItems.length>0&&(
           <div style={{marginBottom:12}}>
-            <p style={{fontSize:11,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Articoli frequenti</p>
+            <p style={{fontSize:11,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>⭐ Articoli frequenti</p>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {saved.slice(0,8).map(a=>(
-                <div key={a.id} style={{display:"flex",alignItems:"center",gap:4,background:P.roseLight,borderRadius:20,padding:"4px 10px"}}>
-                  <button onClick={()=>{setText(a.name);inputRef.current?.focus();}} style={{border:"none",background:"none",cursor:"pointer",fontSize:12,color:P.dark}}>{a.name}</button>
-                  <button onClick={()=>deleteSaved(a.id)} style={{border:"none",background:"none",cursor:"pointer",fontSize:10,color:P.rose}}>✕</button>
-                </div>
+              {frequentItems.map(a=>(
+                <button key={a.id} onClick={()=>{
+                  if(!a.checked){
+                    // Add a new copy to the list if not already unchecked
+                    const alreadyIn=unchecked.find(i=>i.text.toLowerCase()===a.text.toLowerCase());
+                    if(!alreadyIn){
+                      push(ref(db,"shopping"),{text:a.text,qty:a.qty||null,category:a.category||null,recurrence:"none",checked:false,frequent:false,createdAt:Date.now()});
+                    }
+                  }
+                }} style={{display:"flex",alignItems:"center",gap:4,background:P.roseLight,borderRadius:20,padding:"5px 12px",border:`1px solid ${P.rose}`,cursor:"pointer"}}>
+                  <span style={{fontSize:12,color:P.dark}}>{a.text}</span>
+                  {a.category&&<span style={{fontSize:10,color:P.lavDark,background:P.lavLight,borderRadius:6,padding:"0 4px"}}>{a.category}</span>}
+                </button>
               ))}
             </div>
           </div>
         )}
+
+        {/* Empty state */}
         {unchecked.length===0&&checked.length===0&&(
           <div style={{textAlign:"center",padding:"40px 0",color:P.gray}}>
             <div style={{fontSize:48,marginBottom:8}}>🛒</div>
             <p style={{fontSize:14}}>La lista è vuota!<br/>Aggiungi il primo prodotto ✨</p>
           </div>
         )}
+
         {unchecked.map(item=><Row key={item.id} item={item}/>)}
+
         {checked.length>0&&(
           <>
             <p style={{fontSize:11,fontWeight:600,color:P.gray,textTransform:"uppercase",letterSpacing:1,margin:"12px 0 6px"}}>Nel carrello ✓</p>
@@ -309,13 +359,31 @@ function ShoppingList({db}){
           </>
         )}
       </div>
+
+      {/* Edit modal */}
       {editing&&(
         <Modal title="✏️ Modifica prodotto" onClose={()=>setEditing(null)}>
           <Lbl>Nome prodotto</Lbl>
-          <input value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))} style={{width:"100%",border:`1.5px solid ${P.rose}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.roseLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={editing.text} onChange={e=>setEditing(p=>({...p,text:e.target.value}))}
+            style={{width:"100%",border:`1.5px solid ${P.rose}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.roseLight,color:P.dark,boxSizing:"border-box"}}/>
           <Lbl>Quantità</Lbl>
-          <input value={editing.qty||""} onChange={e=>setEditing(p=>({...p,qty:e.target.value}))} style={{width:"100%",border:`1.5px solid ${P.peach}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.peachLight,color:P.dark,boxSizing:"border-box"}}/>
+          <input value={editing.qty||""} onChange={e=>setEditing(p=>({...p,qty:e.target.value}))}
+            style={{width:"100%",border:`1.5px solid ${P.peach}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.peachLight,color:P.dark,boxSizing:"border-box"}}/>
+          <Lbl>Categoria</Lbl>
+          <select value={editing.category||""} onChange={e=>setEditing(p=>({...p,category:e.target.value}))}
+            style={{width:"100%",border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:15,outline:"none",background:P.lavLight,color:P.dark,boxSizing:"border-box",WebkitAppearance:"none"}}>
+            <option value="">Nessuna categoria</option>
+            {categories.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
           <RecRow value={editing.recurrence||"none"} onChange={v=>setEditing(p=>({...p,recurrence:v}))} color={P.rose} colorLight={P.roseLight}/>
+          <div>
+            <Lbl>Articolo frequente</Lbl>
+            <button onClick={()=>setEditing(p=>({...p,frequent:!p.frequent}))}
+              style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",borderRadius:12,border:`1.5px solid ${editing.frequent?"#F4A020":P.roseLight}`,background:editing.frequent?"#FFF3E0":"#fff",cursor:"pointer"}}>
+              <span style={{fontSize:18}}>{editing.frequent?"⭐":"☆"}</span>
+              <p style={{fontSize:13,fontWeight:600,color:P.dark,margin:0}}>{editing.frequent?"Articolo frequente attivo":"Non frequente"}</p>
+            </button>
+          </div>
           <BtnRow onCancel={()=>setEditing(null)} onSave={saveEdit} onDelete={()=>{deleteItem(editing.id);}}/>
         </Modal>
       )}
@@ -421,7 +489,7 @@ function CalendarView({db,user,users}){
   const[templates,setTemplates]=useState([]);
   const[view,setView]=useState("month");
   const[curDate,setCurDate]=useState(new Date());
-  const[calFilter,setCalFilter]=useState("shared");
+
   const[showAdd,setShowAdd]=useState(false);
   const[showTpl,setShowTpl]=useState(false);
   const[selDay,setSelDay]=useState(null);
@@ -475,7 +543,7 @@ function CalendarView({db,user,users}){
   const getEvColor=(ev)=>ev.color||ev.ownerColor||P.mint;
   const getUserColor=(name)=>{const u=Object.values(users||{}).find(u=>u.name===name);return u?.color||P.mint;};
 
-  const visibleEvents=events.filter(ev=>calFilter==="mine"?ev.owner===user.name:(ev.isShared||ev.owner===user.name));
+  const visibleEvents=events;  // Show all events (shared + personal)
 
   const expandForMonth=(year,month)=>{
     const result=[],dim=new Date(year,month+1,0).getDate();
@@ -534,10 +602,8 @@ function CalendarView({db,user,users}){
             </button>
           ))}
         </div>
-        <div style={{display:"flex",gap:6,marginBottom:8}}>
-          <button onClick={()=>setCalFilter("shared")} style={{flex:1,padding:"5px 0",borderRadius:10,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:calFilter==="shared"?user.color:P.mintLight,color:calFilter==="shared"?"#fff":P.gray}}>🌸 Condiviso</button>
-          <button onClick={()=>setCalFilter("mine")} style={{flex:1,padding:"5px 0",borderRadius:10,fontSize:12,fontWeight:500,border:"none",cursor:"pointer",background:calFilter==="mine"?user.color:P.mintLight,color:calFilter==="mine"?"#fff":P.gray}}>👤 Il mio</button>
-          <button onClick={()=>exportToICS(events,user.name)} title="Esporta al calendario iPhone" style={{padding:"5px 10px",borderRadius:10,fontSize:12,border:"none",cursor:"pointer",background:P.mintLight,color:P.gray}}>📲</button>
+        <div style={{display:"flex",gap:6,marginBottom:8,justifyContent:"flex-end"}}>
+          <button onClick={()=>exportToICS(events,user.name)} title="Esporta al calendario iPhone" style={{padding:"5px 10px",borderRadius:10,fontSize:12,border:"none",cursor:"pointer",background:P.mintLight,color:P.gray}}>📲 Esporta</button>
         </div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
           <button onClick={()=>navigate(-1)} style={{width:32,height:32,borderRadius:"50%",border:"none",background:P.mintLight,cursor:"pointer",fontSize:18}}>‹</button>
