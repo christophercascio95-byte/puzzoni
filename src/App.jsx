@@ -213,7 +213,8 @@ function ShoppingList({db}){
   const[rec,setRec]=useState("none");
   const[sortBy,setSortBy]=useState("none"); // none | name | category
   const[editing,setEditing]=useState(null);
-  const[showCatInput,setShowCatInput]=useState(false);
+  const[showCatManager,setShowCatManager]=useState(false);
+  const[newCatName,setNewCatName]=useState("");
   const inputRef=useRef();
 
   useEffect(()=>{
@@ -291,16 +292,9 @@ function ShoppingList({db}){
               <option value="">Categoria (opzionale)</option>
               {categories.map(c=><option key={c} value={c}>{c}</option>)}
             </select>
-            <button onClick={()=>setShowCatInput(!showCatInput)}
-              style={{padding:"8px 12px",borderRadius:12,fontSize:13,border:`1.5px solid ${P.lav}`,background:P.lavLight,cursor:"pointer",color:P.lavDark,fontWeight:600}}>+Cat</button>
+            <button onClick={()=>setShowCatManager(true)}
+              style={{padding:"8px 12px",borderRadius:12,fontSize:12,border:`1.5px solid ${P.lav}`,background:P.lavLight,cursor:"pointer",color:P.lavDark,fontWeight:600,whiteSpace:"nowrap"}}>Categorie</button>
           </div>
-          {showCatInput&&(
-            <div style={{display:"flex",gap:8,marginBottom:8}}>
-              <input placeholder="Nuova categoria..." value={cat} onChange={e=>setCat(e.target.value)}
-                style={{flex:1,border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"8px 12px",fontSize:14,outline:"none",background:P.lavLight,color:P.dark}}/>
-              <button onClick={()=>setShowCatInput(false)} style={{padding:"8px 12px",borderRadius:12,fontSize:12,border:"none",background:P.lavLight,cursor:"pointer",color:P.gray}}>OK</button>
-            </div>
-          )}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
             {["none","daily","weekly","monthly"].map(r=>(
               <button key={r} onClick={()=>setRec(r)} style={{padding:"5px 10px",borderRadius:20,fontSize:11,fontWeight:500,border:"none",cursor:"pointer",background:rec===r?P.rose:P.roseLight,color:rec===r?"#fff":P.gray}}>{REC_LABELS[r]}</button>
@@ -359,6 +353,41 @@ function ShoppingList({db}){
           </>
         )}
       </div>
+
+      {/* Category Manager Modal */}
+      {showCatManager&&(
+        <Modal title="🏷️ Gestisci categorie" onClose={()=>{setShowCatManager(false);setNewCatName("");}}>
+          {categories.length===0
+            ?<p style={{fontSize:13,color:P.gray,textAlign:"center",marginBottom:16}}>Nessuna categoria ancora</p>
+            :categories.map((c,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:14,padding:"10px 14px",marginBottom:8,border:`1.5px solid ${P.lavLight}`}}>
+                <span style={{flex:1,fontSize:14,color:P.dark}}>{c}</span>
+                <button onClick={()=>setCat(c)} style={{padding:"4px 10px",borderRadius:10,fontSize:12,border:`1px solid ${P.lav}`,background:cat===c?P.lav:P.lavLight,cursor:"pointer",color:cat===c?"#fff":P.lavDark}}>Usa</button>
+                <button onClick={()=>{
+                  const newCats=categories.filter((_,j)=>j!==i);
+                  set(ref(db,"shoppingCategories"),newCats);
+                }} style={{border:"none",background:"none",cursor:"pointer",fontSize:18}}>🗑</button>
+              </div>
+            ))
+          }
+          <p style={{fontSize:13,fontWeight:600,color:P.dark,margin:"16px 0 4px"}}>Nuova categoria</p>
+          <div style={{display:"flex",gap:8}}>
+            <input value={newCatName} onChange={e=>setNewCatName(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"&&newCatName.trim()){const nc=[...categories,newCatName.trim()];set(ref(db,"shoppingCategories"),nc);setNewCatName("");}}}
+              placeholder="es. Frutta, Latticini, Pulizia..."
+              style={{flex:1,border:`1.5px solid ${P.lav}`,borderRadius:12,padding:"10px 12px",fontSize:14,outline:"none",background:P.lavLight,color:P.dark}}/>
+            <button onClick={()=>{
+              if(!newCatName.trim())return;
+              const nc=[...categories,newCatName.trim()];
+              set(ref(db,"shoppingCategories"),nc);
+              setNewCatName("");
+            }} style={{padding:"10px 16px",borderRadius:12,fontSize:13,fontWeight:600,border:"none",background:`linear-gradient(135deg,${P.lav},${P.lavDark})`,color:"#fff",cursor:"pointer"}}>+ Aggiungi</button>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:16}}>
+            <button onClick={()=>{setShowCatManager(false);setNewCatName("");}} style={{flex:1,padding:"12px 0",borderRadius:20,border:"none",background:P.mintLight,color:P.gray,cursor:"pointer"}}>Chiudi</button>
+          </div>
+        </Modal>
+      )}
 
       {/* Edit modal */}
       {editing&&(
@@ -751,12 +780,7 @@ function CalendarView({db,user,users}){
             }} color={P.mint} colorLight={P.mintLight}/>
           </div>
           <RecRow value={newEv.recurrence} onChange={v=>setNewEv(p=>({...p,recurrence:v}))}/>
-          <div><Lbl>Visibilità</Lbl>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setNewEv(p=>({...p,isShared:true}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:newEv.isShared?P.mint:P.mintLight,color:newEv.isShared?"#fff":P.gray}}>🌸 Condiviso</button>
-              <button onClick={()=>setNewEv(p=>({...p,isShared:false}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!newEv.isShared?P.mint:P.mintLight,color:!newEv.isShared?"#fff":P.gray}}>👤 Solo mio</button>
-            </div>
-          </div>
+
           <ColorPicker label="Colore evento (solo calendario personale)" value={newEv.color||user.color} onChange={v=>setNewEv(p=>({...p,color:v}))}/>
           <div>
             <Lbl>Evento improrogabile (sempre visibile)</Lbl>
@@ -865,12 +889,7 @@ function CalendarView({db,user,users}){
             }} color={P.mint} colorLight={P.mintLight}/>
           </div>
           <RecRow value={editEv.recurrence||"none"} onChange={v=>setEditEv(p=>({...p,recurrence:v}))}/>
-          <div><Lbl>Visibilità</Lbl>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setEditEv(p=>({...p,isShared:true}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:editEv.isShared?P.mint:P.mintLight,color:editEv.isShared?"#fff":P.gray}}>🌸 Condiviso</button>
-              <button onClick={()=>setEditEv(p=>({...p,isShared:false}))} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:13,border:"none",cursor:"pointer",background:!editEv.isShared?P.mint:P.mintLight,color:!editEv.isShared?"#fff":P.gray}}>👤 Solo mio</button>
-            </div>
-          </div>
+
           <ColorPicker label="Colore evento" value={editEv.color||user.color} onChange={v=>setEditEv(p=>({...p,color:v}))}/>
           <div>
             <Lbl>Evento improrogabile (sempre visibile)</Lbl>
